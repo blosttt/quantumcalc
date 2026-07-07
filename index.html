@@ -24,7 +24,7 @@
         <header class="app-header">
             <div class="logo">
                 <i class="fa-solid fa-microchip logo-icon"></i>
-                <h1>QuantumCalc <span class="badge">v1.2.0</span></h1>
+                <h1>QuantumCalc <span class="badge">v1.3.0</span></h1>
             </div>
             <p class="subtitle">La calculadora matemática de alto rendimiento</p>
         </header>
@@ -80,7 +80,7 @@
             </div>
             
             <div class="expression-preview">
-                <span class="expr-label">Cálculo:</span>
+                <span class="expr-label">Cálculo: <span id="difficulty-badge" class="badge">Simple</span></span>
                 <span class="expr-val" id="locked-expression">5 + 5</span>
             </div>
 
@@ -101,9 +101,9 @@
                 <div class="divider">
                     <span>O TAMBIÉN</span>
                 </div>
-                <button class="btn-paywall-secondary" onclick="openBlackjackGame()">
-                    <i class="fa-solid fa-dice-five"></i> Retar a la Casa (Blackjack)
-                    <span class="help-badge">¡Gratis si ganas!</span>
+                <button class="btn-paywall-secondary" onclick="openGameSelector()">
+                    <i class="fa-solid fa-gamepad"></i> Retar a la Casa (Juegos Gratis)
+                    <span class="help-badge">¡Elige tu juego y gana!</span>
                 </button>
             </div>
             <button class="close-modal-btn" onclick="closeModal('paywall-modal')">
@@ -112,69 +112,387 @@
         </div>
     </div>
 
-    <!-- Modal 2: Blackjack Game -->
-    <div class="modal-overlay" id="blackjack-modal">
-        <div class="modal-content glassmorphism blackjack-content">
-            <div class="blackjack-table">
-                <!-- Felt Header -->
-                <div class="table-header">
-                    <div class="blackjack-logo">
-                        <i class="fa-solid fa-clubs logo-club"></i>
-                        <h3>CASINO QUANTUM</h3>
-                    </div>
-                    <div class="game-info-badge">
-                        <span>Recompensa:</span> <strong id="blackjack-reward-text">Resultado Gratis</strong>
-                    </div>
-                    <div class="game-stakes-badge">
-                        <span>Si pierdes, la suscripción sube a:</span> <strong id="next-price-preview" class="glow-text">$3.98</strong>
-                    </div>
-                </div>
-
-                <!-- Dealer Area -->
-                <div class="dealer-area hand-area">
-                    <div class="area-label">BANCA <span class="score-badge" id="dealer-score">?</span></div>
-                    <div class="cards-container" id="dealer-cards">
-                        <!-- Dynamic cards -->
-                    </div>
-                </div>
-
-                <!-- Status Banner -->
-                <div class="game-status-banner" id="game-status-banner">
-                    <span id="game-status-text">¡Tu turno! Pide carta o plántate.</span>
-                </div>
-
-                <!-- Player Area -->
-                <div class="player-area hand-area">
-                    <div class="cards-container" id="player-cards">
-                        <!-- Dynamic cards -->
-                    </div>
-                    <div class="area-label">TU MANO <span class="score-badge" id="player-score">0</span></div>
-                </div>
-
-                <!-- Controls -->
-                <div class="blackjack-controls">
-                    <button class="btn-blackjack btn-hit" id="btn-hit" onclick="blackjackHit()">
-                        <i class="fa-solid fa-plus"></i> Pedir Carta
-                    </button>
-                    <button class="btn-blackjack btn-stand" id="btn-stand" onclick="blackjackStand()">
-                        <i class="fa-solid fa-hand"></i> Plantarse
-                    </button>
-                    <button class="btn-blackjack btn-action-main hide" id="btn-bj-reset" onclick="startNewBlackjackRound()">
-                        <i class="fa-solid fa-rotate-right"></i> Jugar Otra Vez
-                    </button>
-                    <button class="btn-blackjack btn-action-exit hide" id="btn-bj-exit" onclick="closeBlackjackAndReturn()">
-                        <i class="fa-solid fa-arrow-left"></i> Volver a la Calculadora
-                    </button>
+    <!-- Modal 2: Game Selector -->
+    <div class="modal-overlay" id="selector-modal">
+        <div class="modal-content glassmorphism selector-content">
+            <div class="selector-header">
+                <h2>Elige tu Desafío</h2>
+                <p>Gana cualquiera de estos juegos para desbloquear tu resultado gratis.</p>
+                <div class="selector-stakes">
+                    <span>Si pierdes, la suscripción sube a:</span> <strong id="selector-price-preview" class="glow-text">$3.98</strong>
                 </div>
             </div>
-            
-            <button class="close-modal-btn" onclick="closeModal('blackjack-modal')">
-                <i class="fa-solid fa-xmark"></i>
+
+            <div class="games-grid">
+                <div class="game-card" onclick="selectGame('blackjack')">
+                    <div class="game-card-icon purple"><i class="fa-solid fa-clubs"></i></div>
+                    <div class="game-card-info">
+                        <h3>Blackjack</h3>
+                        <p>Suma 21 y vence a la casa.</p>
+                    </div>
+                </div>
+                <div class="game-card" onclick="selectGame('roulette')">
+                    <div class="game-card-icon red"><i class="fa-solid fa-circle-notch"></i></div>
+                    <div class="game-card-info">
+                        <h3>Ruleta</h3>
+                        <p>Apuesta al color o número exacto.</p>
+                    </div>
+                </div>
+                <div class="game-card" onclick="selectGame('poker')">
+                    <div class="game-card-icon gold"><i class="fa-solid fa-id-card"></i></div>
+                    <div class="game-card-info">
+                        <h3>Video Póker</h3>
+                        <p>Consigue una mano ganadora.</p>
+                    </div>
+                </div>
+                <div class="game-card" onclick="selectGame('dice')">
+                    <div class="game-card-icon cyan"><i class="fa-solid fa-dice"></i></div>
+                    <div class="game-card-info">
+                        <h3>Dados</h3>
+                        <p>Apuesta sobre la suma de dados.</p>
+                    </div>
+                </div>
+                <div class="game-card" onclick="selectGame('mines')">
+                    <div class="game-card-icon green"><i class="fa-solid fa-bomb"></i></div>
+                    <div class="game-card-info">
+                        <h3>Minas</h3>
+                        <p>Evita las bombas en una cuadrícula.</p>
+                    </div>
+                </div>
+                <div class="game-card" onclick="selectGame('crash')">
+                    <div class="game-card-icon orange"><i class="fa-solid fa-rocket"></i></div>
+                    <div class="game-card-info">
+                        <h3>Cohete (Crash)</h3>
+                        <p>Cobra antes de que explote.</p>
+                    </div>
+                </div>
+                <div class="game-card game-card-double" onclick="selectGame('trading')">
+                    <div class="game-card-icon stock"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="game-card-info">
+                        <h3>Simulación de Bolsa</h3>
+                        <p>Compra barato y vende caro para ganar $1,500.</p>
+                    </div>
+                </div>
+            </div>
+
+            <button class="close-modal-btn" onclick="closeGameSelectorAndReturn()">
+                <i class="fa-solid fa-arrow-left"></i>
             </button>
         </div>
     </div>
 
-    <!-- Modal 3: Payment Gateway -->
+    <!-- Modal 3: Blackjack -->
+    <div class="modal-overlay" id="blackjack-modal">
+        <div class="modal-content glassmorphism blackjack-content">
+            <div class="blackjack-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-clubs logo-club"></i>
+                        <h3>CASINO: BLACKJACK</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+                <div class="dealer-area hand-area">
+                    <div class="area-label">BANCA <span class="score-badge" id="dealer-score">?</span></div>
+                    <div class="cards-container" id="dealer-cards"></div>
+                </div>
+                <div class="game-status-banner" id="blackjack-status-banner">
+                    <span id="blackjack-status-text">¡Tu turno! Pide carta o plántate.</span>
+                </div>
+                <div class="player-area hand-area">
+                    <div class="cards-container" id="player-cards"></div>
+                    <div class="area-label">TU MANO <span class="score-badge" id="player-score">0</span></div>
+                </div>
+                <div class="blackjack-controls game-controls">
+                    <button class="btn-blackjack btn-hit" id="btn-hit" onclick="blackjackHit()">Pedir Carta</button>
+                    <button class="btn-blackjack btn-stand" id="btn-stand" onclick="blackjackStand()">Plantarse</button>
+                    <button class="btn-blackjack btn-action-main hide" id="btn-bj-reset" onclick="startNewBlackjackRound()">Jugar Otra Vez</button>
+                    <button class="btn-blackjack btn-action-exit hide" id="btn-bj-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Roulette -->
+    <div class="modal-overlay" id="roulette-modal">
+        <div class="modal-content glassmorphism roulette-content">
+            <div class="roulette-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-circle-notch logo-club spinner-slow"></i>
+                        <h3>CASINO: RULETA</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Wheel Visual -->
+                <div class="roulette-wheel-container">
+                    <div class="wheel-pointer"></div>
+                    <div class="roulette-wheel" id="roulette-wheel-visual">
+                        <!-- Render numbers -->
+                        <div class="wheel-inner-glow"></div>
+                        <div class="wheel-ball" id="wheel-ball"></div>
+                    </div>
+                </div>
+
+                <!-- Betting Controls -->
+                <div class="roulette-betting">
+                    <div class="bet-type-selectors">
+                        <button class="bet-btn bet-red" onclick="setRouletteBet('red')" id="bet-btn-red">Rojo</button>
+                        <button class="bet-btn bet-black" onclick="setRouletteBet('black')" id="bet-btn-black">Negro</button>
+                    </div>
+                    <div class="divider"><span>O NÚMERO EXACTO</span></div>
+                    <div class="number-bet-input">
+                        <input type="number" id="bet-number-val" min="0" max="36" placeholder="0-36" oninput="setRouletteBet('number')">
+                    </div>
+                </div>
+
+                <div class="game-status-banner" id="roulette-status-banner">
+                    <span id="roulette-status-text">Elige una apuesta e inicia el juego.</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-spin-wheel" onclick="playRouletteSpin()">Girar Ruleta</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-roulette-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 5: Poker -->
+    <div class="modal-overlay" id="poker-modal">
+        <div class="modal-content glassmorphism poker-content">
+            <div class="poker-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-id-card logo-club"></i>
+                        <h3>VIDEO PÓKER</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Poker Cards Container -->
+                <div class="poker-hand-container">
+                    <div class="poker-card-wrapper" onclick="togglePokerHold(0)">
+                        <div class="poker-card" id="poker-card-0"></div>
+                        <div class="hold-badge hide" id="hold-badge-0">MANTENER</div>
+                    </div>
+                    <div class="poker-card-wrapper" onclick="togglePokerHold(1)">
+                        <div class="poker-card" id="poker-card-1"></div>
+                        <div class="hold-badge hide" id="hold-badge-1">MANTENER</div>
+                    </div>
+                    <div class="poker-card-wrapper" onclick="togglePokerHold(2)">
+                        <div class="poker-card" id="poker-card-2"></div>
+                        <div class="hold-badge hide" id="hold-badge-2">MANTENER</div>
+                    </div>
+                    <div class="poker-card-wrapper" onclick="togglePokerHold(3)">
+                        <div class="poker-card" id="poker-card-3"></div>
+                        <div class="hold-badge hide" id="hold-badge-3">MANTENER</div>
+                    </div>
+                    <div class="poker-card-wrapper" onclick="togglePokerHold(4)">
+                        <div class="poker-card" id="poker-card-4"></div>
+                        <div class="hold-badge hide" id="hold-badge-4">MANTENER</div>
+                    </div>
+                </div>
+
+                <div class="game-status-banner" id="poker-status-banner">
+                    <span id="poker-status-text">¡Inicia la partida de póker!</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-poker-deal" onclick="handlePokerDeal()">Repartir</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-poker-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6: Dice -->
+    <div class="modal-overlay" id="dice-modal">
+        <div class="modal-content glassmorphism dice-content">
+            <div class="dice-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-dice logo-club"></i>
+                        <h3>CASINO: DADOS</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Dice Area -->
+                <div class="dice-container">
+                    <div class="die" id="die-1">
+                        <!-- Dots rendered dynamically -->
+                        <span class="dot-center">•</span>
+                    </div>
+                    <div class="die" id="die-2">
+                        <span class="dot-center">•</span>
+                    </div>
+                </div>
+
+                <!-- Dice Bets -->
+                <div class="dice-betting">
+                    <button class="bet-btn bet-dice-low" onclick="setDiceBet('under')" id="bet-dice-under">Bajo (Menos de 7)</button>
+                    <button class="bet-btn bet-dice-mid" onclick="setDiceBet('seven')" id="bet-dice-seven">7 Exacto</button>
+                    <button class="bet-btn bet-dice-high" onclick="setDiceBet('over')" id="bet-dice-over">Alto (Más de 7)</button>
+                </div>
+
+                <div class="game-status-banner" id="dice-status-banner">
+                    <span id="dice-status-text">Selecciona tu apuesta y lanza los dados.</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-roll-dice" onclick="rollDiceGame()">Lanzar Dados</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-dice-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 7: Mines -->
+    <div class="modal-overlay" id="mines-modal">
+        <div class="modal-content glassmorphism mines-content">
+            <div class="mines-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-bomb logo-club"></i>
+                        <h3>MINAS</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Mines Stat Info -->
+                <div class="mines-info-bar">
+                    <div class="info-item">
+                        <span class="label">Gemas:</span>
+                        <strong id="mines-gems-found">0/20</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Multiplicador:</span>
+                        <strong id="mines-multiplier" class="glow-text">1.00x</strong>
+                    </div>
+                </div>
+
+                <!-- 5x5 Grid -->
+                <div class="mines-grid-container" id="mines-grid">
+                    <!-- 25 cell elements created dynamically -->
+                </div>
+
+                <div class="game-status-banner" id="mines-status-banner">
+                    <span id="mines-status-text">Establece 5 minas y haz clic en Iniciar.</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-mines-start" onclick="startMinesGame()">Iniciar Juego</button>
+                    <button class="btn-blackjack btn-hit hide" id="btn-mines-cashout" onclick="cashoutMinesGame()">Cobrar Multiplicador</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-mines-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 8: Crash Rocket -->
+    <div class="modal-overlay" id="crash-modal">
+        <div class="modal-content glassmorphism crash-content">
+            <div class="crash-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-rocket logo-club"></i>
+                        <h3>COHETE (CRASH)</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Crash Display Arena -->
+                <div class="crash-arena">
+                    <div class="crash-multiplier" id="crash-multiplier-text">1.00x</div>
+                    <canvas id="crash-canvas" width="340" height="180"></canvas>
+                </div>
+
+                <div class="game-status-banner" id="crash-status-banner">
+                    <span id="crash-status-text">Despega el cohete e intenta cobrar a tiempo.</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-crash-launch" onclick="launchCrashRocket()">Despegar Cohete</button>
+                    <button class="btn-blackjack btn-hit hide" id="btn-crash-cashout" onclick="cashoutCrashRocket()">Cobrar Multiplicador</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-crash-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 9: Stock Trading Simulation -->
+    <div class="modal-overlay" id="trading-modal">
+        <div class="modal-content glassmorphism trading-content">
+            <div class="trading-table table-view">
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-chart-line logo-club"></i>
+                        <h3>SIMULACIÓN DE BOLSA</h3>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Info Bar -->
+                <div class="trading-info-bar">
+                    <div class="info-item">
+                        <span class="label">Saldo:</span>
+                        <strong id="trading-balance" class="glow-text">$1,000.00</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Meta:</span>
+                        <strong id="trading-target" style="color:var(--success-green); font-weight:700;">$1,500.00</strong>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Tiempo:</span>
+                        <strong id="trading-timer" style="color:var(--accent-gold);">30s</strong>
+                    </div>
+                </div>
+
+                <!-- stock price and chart -->
+                <div class="stock-ticker-card">
+                    <div class="stock-ticker-header">
+                        <span class="stock-symbol">MATH CORP (MTH)</span>
+                        <span class="stock-price" id="trading-stock-price">$100.00</span>
+                    </div>
+                    <div class="stock-chart-container">
+                        <canvas id="trading-canvas" width="340" height="150"></canvas>
+                    </div>
+                    <div class="shares-owned-badge">
+                        <span>Acciones en Propiedad:</span> <strong id="trading-shares-owned">0</strong>
+                    </div>
+                </div>
+
+                <div class="game-status-banner" id="trading-status-banner">
+                    <span id="trading-status-text">Compra barato, vende caro. ¡Alcanza la meta!</span>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn-blackjack btn-action-main" id="btn-trading-start" onclick="startTradingGame()">Comenzar Simulación</button>
+                    <button class="btn-blackjack btn-hit hide" id="btn-trading-buy" onclick="buyStock()">Comprar Acciones</button>
+                    <button class="btn-blackjack btn-stand hide" id="btn-trading-sell" onclick="sellStock()">Vender Acciones</button>
+                    <button class="btn-blackjack btn-action-exit" id="btn-trading-exit" onclick="closeGameAndReturn()">Volver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 10: Payment Gateway -->
     <div class="modal-overlay" id="payment-modal">
         <div class="modal-content glassmorphism payment-content">
             <div class="payment-header">
