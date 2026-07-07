@@ -2013,3 +2013,140 @@ input:focus {
     from { transform: translateX(0) scale(1); opacity: 1; }
     to { transform: translateX(120%) scale(0.9); opacity: 0; }
 }
+
+/* ==========================================================================
+   RESPONSIVE DESIGN (MEDIA QUERIES FOR MOBILE 10/10)
+   ========================================================================== */
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .app-container {
+        padding: 5px;
+        gap: 10px;
+    }
+    
+    .calculator-card {
+        padding: 14px;
+        border-radius: 20px;
+        gap: 12px;
+    }
+    
+    .calculator-display {
+        padding: 12px 16px;
+        min-height: 90px;
+    }
+    
+    .display-main {
+        font-size: 2rem;
+        max-height: 60px;
+    }
+    
+    .btn {
+        height: 46px;
+        border-radius: 12px;
+        font-size: 1.15rem;
+    }
+    
+    .btn-sci {
+        height: 36px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+    }
+    
+    .calculator-keypad {
+        gap: 8px;
+    }
+    
+    .calculator-scientific-keypad {
+        gap: 8px;
+        padding-bottom: 8px;
+    }
+    
+    /* Modal responsive scale */
+    .modal-content {
+        padding: 20px 16px;
+        border-radius: 20px;
+        max-height: 94vh;
+        overflow-y: auto;
+    }
+    
+    /* Blackjack cards scaling */
+    .card {
+        width: 56px;
+        height: 80px;
+    }
+    .card-rank {
+        font-size: 0.95rem;
+    }
+    .card-suit {
+        font-size: 0.75rem;
+    }
+    .card-center-suit {
+        font-size: 1.5rem;
+    }
+    
+    /* Video Poker cards scaling */
+    .poker-hand-container {
+        gap: 4px;
+        margin: 12px 0;
+    }
+    .poker-card {
+        width: 52px;
+        height: 76px;
+    }
+    .hold-badge {
+        font-size: 0.58rem;
+        padding: 1px 4px;
+        bottom: -12px;
+    }
+    
+    /* Roulette scaling */
+    .roulette-wheel-container {
+        width: 140px;
+        height: 140px;
+        margin: 10px auto;
+    }
+    .wheel-ball {
+        top: 17px;
+        width: 11px;
+        height: 11px;
+    }
+    
+    /* Dice scaling */
+    .die {
+        width: 55px;
+        height: 55px;
+        border-radius: 8px;
+        padding: 5px;
+    }
+    .die-dot {
+        width: 8px;
+        height: 8px;
+    }
+    
+    /* Mines grid columns */
+    .mines-grid-container {
+        gap: 6px;
+        margin: 10px 0;
+    }
+    .mine-cell {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 360px) {
+    /* Super small phones like iPhone SE 1st gen */
+    .poker-card {
+        width: 44px;
+        height: 66px;
+    }
+    .card {
+        width: 48px;
+        height: 70px;
+    }
+    .display-main {
+        font-size: 1.7rem;
+    }
+}

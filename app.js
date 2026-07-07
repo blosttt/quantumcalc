@@ -462,10 +462,31 @@ function selectGame(gameName) {
         initMinesGame();
     } else if (gameName === 'crash') {
         openModal('crash-modal');
-        initCrashGame();
+        setTimeout(() => {
+            resizeCanvases();
+            initCrashGame();
+        }, 150);
     } else if (gameName === 'trading') {
         openModal('trading-modal');
-        initTradingGame();
+        setTimeout(() => {
+            resizeCanvases();
+            initTradingGame();
+        }, 150);
+    }
+}
+
+function resizeCanvases() {
+    const crashArena = document.querySelector('.crash-arena');
+    const crashCanvas = document.getElementById('crash-canvas');
+    if (crashArena && crashCanvas) {
+        crashCanvas.width = crashArena.clientWidth || 340;
+        crashCanvas.height = crashArena.clientHeight || 180;
+    }
+    const chartContainer = document.querySelector('.stock-chart-container');
+    const tradingCanvas = document.getElementById('trading-canvas');
+    if (chartContainer && tradingCanvas) {
+        tradingCanvas.width = chartContainer.clientWidth || 340;
+        tradingCanvas.height = chartContainer.clientHeight || 150;
     }
 }
 
