@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumCalc - La Calculadora Premium</title>
+    <!-- Google Fonts: Poppins & Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-decor">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+        <div class="circle circle-3"></div>
+    </div>
+
+    <main class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-microchip logo-icon"></i>
+                <h1>QuantumCalc <span class="badge">v1.2.0</span></h1>
+            </div>
+            <p class="subtitle">La calculadora matemática de alto rendimiento</p>
+        </header>
+
+        <!-- Calculator Card -->
+        <section class="calculator-card">
+            <div class="calculator-display">
+                <div class="display-history" id="calc-history"></div>
+                <div class="display-main" id="calc-display">0</div>
+            </div>
+            <div class="calculator-keypad">
+                <button class="btn btn-action" onclick="clearCalculator()" id="btn-clear">C</button>
+                <button class="btn btn-action" onclick="deleteLastChar()" id="btn-del">DEL</button>
+                <button class="btn btn-action" onclick="appendOperator('%')" id="btn-mod">%</button>
+                <button class="btn btn-operator" onclick="appendOperator('/')" id="btn-div">÷</button>
+
+                <button class="btn btn-num" onclick="appendNumber('7')">7</button>
+                <button class="btn btn-num" onclick="appendNumber('8')">8</button>
+                <button class="btn btn-num" onclick="appendNumber('9')">9</button>
+                <button class="btn btn-operator" onclick="appendOperator('*')" id="btn-mul">×</button>
+
+                <button class="btn btn-num" onclick="appendNumber('4')">4</button>
+                <button class="btn btn-num" onclick="appendNumber('5')">5</button>
+                <button class="btn btn-num" onclick="appendNumber('6')">6</button>
+                <button class="btn btn-operator" onclick="appendOperator('-')" id="btn-sub">−</button>
+
+                <button class="btn btn-num" onclick="appendNumber('1')">1</button>
+                <button class="btn btn-num" onclick="appendNumber('2')">2</button>
+                <button class="btn btn-num" onclick="appendNumber('3')">3</button>
+                <button class="btn btn-operator" onclick="appendOperator('+')" id="btn-add">+</button>
+
+                <button class="btn btn-num btn-double" onclick="appendNumber('0')">0</button>
+                <button class="btn btn-num" onclick="appendDecimal()">.</button>
+                <button class="btn btn-equals" onclick="handleEquals()" id="btn-equals">=</button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 QuantumCalc Inc. Todos los derechos reservados.</p>
+        </footer>
+    </main>
+
+    <!-- Modal 1: Paywall -->
+    <div class="modal-overlay" id="paywall-modal">
+        <div class="modal-content glassmorphism paywall-content">
+            <div class="modal-header">
+                <div class="lock-icon-container">
+                    <i class="fa-solid fa-lock lock-glow-icon"></i>
+                </div>
+                <h2>Resultado Bloqueado</h2>
+                <p>Esta operación requiere funciones de procesamiento matemático avanzadas.</p>
+            </div>
+            
+            <div class="expression-preview">
+                <span class="expr-label">Cálculo:</span>
+                <span class="expr-val" id="locked-expression">5 + 5</span>
+            </div>
+
+            <div class="pricing-card">
+                <span class="pricing-title">Suscripción Math Premium</span>
+                <div class="price-container">
+                    <span class="currency">$</span>
+                    <span class="price-amount" id="sub-price">1.99</span>
+                    <span class="period">/ mes</span>
+                </div>
+                <p class="pricing-description">Desbloquea resultados ilimitados por un mes. Cancela cuando quieras.</p>
+            </div>
+
+            <div class="paywall-actions">
+                <button class="btn-paywall-primary" id="btn-pay-modal" onclick="openPaymentModal()">
+                    <i class="fa-solid fa-credit-card"></i> Pagar Suscripción
+                </button>
+                <div class="divider">
+                    <span>O TAMBIÉN</span>
+                </div>
+                <button class="btn-paywall-secondary" onclick="openBlackjackGame()">
+                    <i class="fa-solid fa-dice-five"></i> Retar a la Casa (Blackjack)
+                    <span class="help-badge">¡Gratis si ganas!</span>
+                </button>
+            </div>
+            <button class="close-modal-btn" onclick="closeModal('paywall-modal')">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal 2: Blackjack Game -->
+    <div class="modal-overlay" id="blackjack-modal">
+        <div class="modal-content glassmorphism blackjack-content">
+            <div class="blackjack-table">
+                <!-- Felt Header -->
+                <div class="table-header">
+                    <div class="blackjack-logo">
+                        <i class="fa-solid fa-clubs logo-club"></i>
+                        <h3>CASINO QUANTUM</h3>
+                    </div>
+                    <div class="game-info-badge">
+                        <span>Recompensa:</span> <strong id="blackjack-reward-text">Resultado Gratis</strong>
+                    </div>
+                    <div class="game-stakes-badge">
+                        <span>Si pierdes, la suscripción sube a:</span> <strong id="next-price-preview" class="glow-text">$3.98</strong>
+                    </div>
+                </div>
+
+                <!-- Dealer Area -->
+                <div class="dealer-area hand-area">
+                    <div class="area-label">BANCA <span class="score-badge" id="dealer-score">?</span></div>
+                    <div class="cards-container" id="dealer-cards">
+                        <!-- Dynamic cards -->
+                    </div>
+                </div>
+
+                <!-- Status Banner -->
+                <div class="game-status-banner" id="game-status-banner">
+                    <span id="game-status-text">¡Tu turno! Pide carta o plántate.</span>
+                </div>
+
+                <!-- Player Area -->
+                <div class="player-area hand-area">
+                    <div class="cards-container" id="player-cards">
+                        <!-- Dynamic cards -->
+                    </div>
+                    <div class="area-label">TU MANO <span class="score-badge" id="player-score">0</span></div>
+                </div>
+
+                <!-- Controls -->
+                <div class="blackjack-controls">
+                    <button class="btn-blackjack btn-hit" id="btn-hit" onclick="blackjackHit()">
+                        <i class="fa-solid fa-plus"></i> Pedir Carta
+                    </button>
+                    <button class="btn-blackjack btn-stand" id="btn-stand" onclick="blackjackStand()">
+                        <i class="fa-solid fa-hand"></i> Plantarse
+                    </button>
+                    <button class="btn-blackjack btn-action-main hide" id="btn-bj-reset" onclick="startNewBlackjackRound()">
+                        <i class="fa-solid fa-rotate-right"></i> Jugar Otra Vez
+                    </button>
+                    <button class="btn-blackjack btn-action-exit hide" id="btn-bj-exit" onclick="closeBlackjackAndReturn()">
+                        <i class="fa-solid fa-arrow-left"></i> Volver a la Calculadora
+                    </button>
+                </div>
+            </div>
+            
+            <button class="close-modal-btn" onclick="closeModal('blackjack-modal')">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal 3: Payment Gateway -->
+    <div class="modal-overlay" id="payment-modal">
+        <div class="modal-content glassmorphism payment-content">
+            <div class="payment-header">
+                <h2>Pasarela de Pago Segura</h2>
+                <p>Completa la transacción para activar tu suscripción.</p>
+            </div>
+
+            <!-- Interactive Card Preview -->
+            <div class="credit-card-preview">
+                <div class="card-inner" id="card-inner">
+                    <div class="card-front">
+                        <div class="card-chip"></div>
+                        <div class="card-logo-vendor"><i class="fa-brands fa-cc-visa"></i></div>
+                        <div class="card-number-display" id="card-number-display">•••• •••• •••• ••••</div>
+                        <div class="card-bottom">
+                            <div class="card-holder-display">
+                                <span class="card-label">TITULAR</span>
+                                <span class="card-value" id="card-holder-val">NOMBRE APELLIDO</span>
+                            </div>
+                            <div class="card-expiry-display">
+                                <span class="card-label">VENCE</span>
+                                <span class="card-value" id="card-expiry-val">MM/AA</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Form -->
+            <form id="payment-form" onsubmit="handlePaymentSubmit(event)">
+                <div class="form-group">
+                    <label for="card-holder">Nombre en la tarjeta</label>
+                    <input type="text" id="card-holder" placeholder="Ej. Juan Pérez" required oninput="updateCardPreview()">
+                </div>
+                <div class="form-group">
+                    <label for="card-number">Número de tarjeta</label>
+                    <input type="text" id="card-number" placeholder="4000 1234 5678 9010" maxlength="19" required oninput="updateCardPreview()">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="card-expiry">Fecha de vencimiento</label>
+                        <input type="text" id="card-expiry" placeholder="MM/AA" maxlength="5" required oninput="updateCardPreview()">
+                    </div>
+                    <div class="form-group">
+                        <label for="card-cvc">CVC</label>
+                        <input type="password" id="card-cvc" placeholder="123" maxlength="4" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit-payment" id="btn-submit-payment">
+                    <span id="btn-pay-text">Confirmar Pago de <span id="pay-button-amount">$1.99</span></span>
+                    <span id="btn-pay-spinner" class="spinner hide"></span>
+                </button>
+            </form>
+
+            <!-- Success Panel -->
+            <div class="payment-success-panel hide" id="payment-success-panel">
+                <div class="success-icon-wrapper">
+                    <i class="fa-solid fa-circle-check check-animate"></i>
+                </div>
+                <h3>¡Suscripción Activada!</h3>
+                <p>Pago procesado con éxito. Se ha desbloqueado tu resultado matemático.</p>
+                <button class="btn-success-close" onclick="finishPaymentUnlock()">Ver Resultado</button>
+            </div>
+
+            <button class="close-modal-btn" onclick="closeModal('payment-modal')">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Alert / Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
