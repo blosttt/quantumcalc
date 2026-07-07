@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDisplay();
     updatePricesUI();
     setupCardInputListeners();
+    setupKeyboardListeners();
 });
 
 // ==========================================================================
@@ -473,6 +474,47 @@ function setupCardInputListeners() {
             if (e.which < 48 || e.which > 57) e.preventDefault();
         });
     }
+}
+
+function setupKeyboardListeners() {
+    window.addEventListener('keydown', (e) => {
+        // Prevent keyboard overrides when typing inside payment forms or bet inputs
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            return;
+        }
+
+        const key = e.key;
+
+        // Numbers 0-9
+        if (/^[0-9]$/.test(key)) {
+            appendNumber(key);
+        }
+        // Basic Operators
+        else if (['+', '-', '*', '/', '%', '^'].includes(key)) {
+            appendOperator(key);
+        }
+        // Decimal Separators
+        else if (key === '.' || key === ',') {
+            appendDecimal();
+        }
+        // Parentheses
+        else if (key === '(' || key === ')') {
+            appendSciFunction(key);
+        }
+        // Equals / Enter
+        else if (key === 'Enter' || key === '=') {
+            e.preventDefault();
+            handleEquals();
+        }
+        // Backspace (Delete last character)
+        else if (key === 'Backspace') {
+            deleteLastChar();
+        }
+        // Escape (Clear screen)
+        else if (key === 'Escape') {
+            clearCalculator();
+        }
+    });
 }
 
 function handlePaymentSubmit(event) {
