@@ -319,7 +319,7 @@
                 <div class="table-header">
                     <div class="blackjack-logo">
                         <i class="fa-solid fa-id-card logo-club"></i>
-                        <h3>VIDEO PÓKER</h3>
+                        <h3>PÓKER VS CASA</h3>
                     </div>
                     <div class="game-timer-badge">
                         <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
@@ -329,7 +329,14 @@
                     </div>
                 </div>
 
-                <!-- Poker Cards Container -->
+                <!-- Dealer Hand -->
+                <div class="poker-section-label">🏦 Mano de la Casa</div>
+                <div class="poker-hand-container" id="poker-dealer-cards">
+                    <!-- Dealer cards rendered by JS -->
+                </div>
+
+                <!-- Player Hand -->
+                <div class="poker-section-label">🃏 Tu Mano <span style="font-size:0.7rem;font-weight:400;opacity:0.6;">(toca una carta para mantenerla)</span></div>
                 <div class="poker-hand-container">
                     <div class="poker-card-wrapper" onclick="togglePokerHold(0)">
                         <div class="poker-card" id="poker-card-0"></div>
@@ -365,6 +372,7 @@
         </div>
     </div>
 
+
     <!-- Modal 6: Dice -->
     <div class="modal-overlay" id="dice-modal">
         <div class="modal-content glassmorphism dice-content">
@@ -384,12 +392,8 @@
 
                 <!-- Dice Area -->
                 <div class="dice-container">
-                    <div class="die" id="die-1">
-                        <span class="dot-center">•</span>
-                    </div>
-                    <div class="die" id="die-2">
-                        <span class="dot-center">•</span>
-                    </div>
+                    <div class="die" id="die-1"></div>
+                    <div class="die" id="die-2"></div>
                 </div>
 
                 <!-- Dice Bets -->

@@ -16,6 +16,7 @@ let activeGame = null; // 'blackjack', 'roulette', 'poker', 'dice', 'mines', 'cr
 let paywallTimer = null;
 let paywallTimeLeft = 60; // 60 seconds limit
 let pendingCalculationResult = ''; // Result to display after unlock
+let pendingUnlock = false; // Set to true when player wins a game
 
 // Suits and Card Definitions for Games
 const SUITS = [
@@ -643,9 +644,17 @@ function closeGameAndReturn() {
     if (activeGame === 'crash') stopCrashLoop();
     if (activeGame === 'trading') stopTradingLoop();
     
-    if (subscriptionActive) {
+    if (pendingUnlock) {
+        pendingUnlock = false;
         stopPaywallCountdown();
-        finishPaymentUnlock();
+        // Close all paywall-related modals before revealing result
+        closeModal('paywall-modal');
+        closeModal('selector-modal');
+        currentInput = pendingCalculationResult;
+        historyInput = currentExpression + ' =';
+        isEvaluated = true;
+        updateDisplay();
+        showToast('¡Resultado desbloqueado!', 'success');
     } else {
         openGameSelector();
     }
@@ -657,17 +666,19 @@ function closeGameAndReturn() {
 // ==========================================================================
 function resolveGameSession(outcome, gameName, statusTextEl, statusBannerEl, exitBtnEl, resetBtnEl) {
     if (outcome === 'win') {
-        subscriptionActive = true;
-        currentPrice = basePrice;
+        // WIN: unlock ONLY the current pending result, do NOT give free forever subscription
+        stopPaywallCountdown();
+        pendingUnlock = true; // Flag so closeGameAndReturn reveals the result
+        currentPrice = basePrice; // Reset price penalty
         updatePricesUI();
-        stopPaywallCountdown(); // Safe stop
         
         statusBannerEl.className = 'game-status-banner toast-success';
-        statusTextEl.innerHTML = `<span class="status-victory">¡VICTORIA!</span> El resultado ha sido desbloqueado gratis.`;
-        showToast('¡Desbloqueo gratuito obtenido!', 'success');
+        statusTextEl.innerHTML = `<span class="status-victory">¡VICTORIA!</span> ¡Pulsa Salir para revelar tu resultado!`;
+        showToast('¡Desbloqueo gratuito obtenido para este cálculo!', 'success');
         
         if (exitBtnEl) {
             exitBtnEl.classList.add('btn-action-main');
+            exitBtnEl.textContent = '¡Ver Resultado!';
             exitBtnEl.classList.remove('hide');
         }
         if (resetBtnEl) resetBtnEl.classList.add('hide');
@@ -818,6 +829,7 @@ function resolveBlackjack(outcome) {
 // GAME 2: ROULETTE
 // ==========================================================================
 let rouletteSelectedBet = null;
+let rouletteCurrentRotation = 0; // Track cumulative wheel rotation
 const rouletteRedNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 
 function initRouletteGame() {
@@ -830,11 +842,12 @@ function initRouletteGame() {
     document.getElementById('btn-spin-wheel').disabled = false;
     document.getElementById('btn-spin-wheel').classList.remove('hide');
     document.getElementById('btn-roulette-exit').classList.remove('btn-action-main');
+    document.getElementById('btn-roulette-exit').textContent = 'Volver';
     
     const banner = document.getElementById('roulette-status-banner');
     banner.className = 'game-status-banner';
     document.getElementById('roulette-status-text').textContent = 'Elige una apuesta (Rojo, Negro o Número) y gira.';
-    document.getElementById('roulette-wheel-visual').style.transform = 'rotate(0deg)';
+    // Don't reset rotation - let it stay accumulated so the transition will fire on next spin
 }
 
 function setRouletteBet(type) {
@@ -866,8 +879,19 @@ function playRouletteSpin() {
     statusText.textContent = '¡La ruleta está girando...! No va más.';
     
     const winningNumber = Math.floor(Math.random() * 37);
-    const spinDegrees = 1440 + Math.floor(Math.random() * 360);
-    document.getElementById('roulette-wheel-visual').style.transform = `rotate(${spinDegrees}deg)`;
+    // Accumulate rotation so transition always fires (minimum 5 full turns + random offset)
+    rouletteCurrentRotation += 1800 + Math.floor(Math.random() * 720);
+    document.getElementById('roulette-wheel-visual').style.transform = `rotate(${rouletteCurrentRotation}deg)`;
+    // Also animate the ball counter-spin for realism
+    const ball = document.getElementById('wheel-ball');
+    if (ball) {
+        ball.style.transition = 'none';
+        ball.style.transform = 'rotate(0deg)';
+        setTimeout(() => {
+            ball.style.transition = 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)';
+            ball.style.transform = `rotate(-${rouletteCurrentRotation * 1.4}deg)`;
+        }, 50);
+    }
     
     setTimeout(() => {
         let color = 'Verde (0)';
@@ -913,6 +937,7 @@ function playRouletteSpin() {
 // ==========================================================================
 let pokerDeck = [];
 let pokerHand = [];
+let pokerDealerHand = [];
 let pokerHolds = [false, false, false, false, false];
 let pokerStep = 1;
 
@@ -953,8 +978,11 @@ function handlePokerDeal() {
         }
         
         pokerHand = [pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop()];
+        // Deal dealer hand face-down initially
+        pokerDealerHand = [pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop()];
         pokerHolds = [false, false, false, false, false];
-        renderPokerHand();
+        renderPokerHand(false);
+        renderPokerDealerHand(true); // face-down
         
         pokerStep = 2;
         dealBtn.textContent = 'Cambiar y Evaluar';
@@ -964,7 +992,8 @@ function handlePokerDeal() {
         for (let i = 0; i < 5; i++) {
             if (!pokerHolds[i]) pokerHand[i] = pokerDeck.pop();
         }
-        renderPokerHand();
+        renderPokerHand(true);
+        renderPokerDealerHand(false); // Reveal dealer hand
         
         const evaluation = evaluatePokerHand(pokerHand);
         const win = evaluation.payout;
@@ -976,7 +1005,7 @@ function handlePokerDeal() {
             statusText.innerHTML = `¡VICTORIA! Mano obtenida: <strong>${evaluation.name}</strong>.`;
             resolveGameSession('win', 'poker', statusText, banner, exitBtn, null);
         } else {
-            statusText.innerHTML = `DERROTA. Mano obtenida: <strong>${evaluation.name}</strong> (Se necesita Pareja de J o mejor).`;
+            statusText.innerHTML = `DERROTA. Tu mano: <strong>${evaluation.name}</strong> (Se necesita Pareja de J o mejor).`;
             resolveGameSession('lose', 'poker', statusText, banner, exitBtn, null);
             
             setTimeout(() => {
@@ -995,7 +1024,7 @@ function togglePokerHold(index) {
     document.getElementById(`hold-badge-${index}`).classList.toggle('hide', !pokerHolds[index]);
 }
 
-function renderPokerHand() {
+function renderPokerHand(animate = false) {
     pokerHand.forEach((card, i) => {
         document.getElementById(`poker-card-${i}`).innerHTML = `
             <div class="card-face card-front ${card.color}" style="position:relative; width:100%; height:100%; backface-visibility:visible; transform:none;">
@@ -1006,6 +1035,30 @@ function renderPokerHand() {
                 <div class="card-center-suit">${card.symbol}</div>
             </div>
         `;
+    });
+}
+
+function renderPokerDealerHand(faceDown) {
+    const container = document.getElementById('poker-dealer-cards');
+    if (!container) return;
+    container.innerHTML = '';
+    pokerDealerHand.forEach((card, i) => {
+        const div = document.createElement('div');
+        div.className = 'poker-card';
+        if (faceDown && i > 0) {
+            div.innerHTML = '<div class="card-face card-back"></div>';
+        } else {
+            div.innerHTML = `
+                <div class="card-face card-front ${card.color}" style="position:relative; width:100%; height:100%; backface-visibility:visible; transform:none;">
+                    <div class="card-top-left">
+                        <span class="card-rank">${card.rank}</span>
+                        <span class="card-suit">${card.symbol}</span>
+                    </div>
+                    <div class="card-center-suit">${card.symbol}</div>
+                </div>
+            `;
+        }
+        container.appendChild(div);
     });
 }
 
@@ -1576,6 +1629,70 @@ function drawCrashBackground() {
     }
 }
 
+function drawTradingChart() {
+    if (!tradingCanvas || !tradingCtx) return;
+    const w = tradingCanvas.width;
+    const h = tradingCanvas.height;
+    const history = tradingChartHistory;
+    
+    tradingCtx.clearRect(0, 0, w, h);
+    
+    // Grid lines
+    tradingCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    tradingCtx.lineWidth = 1;
+    for (let i = 40; i < w; i += 40) {
+        tradingCtx.beginPath(); tradingCtx.moveTo(i, 0); tradingCtx.lineTo(i, h); tradingCtx.stroke();
+    }
+    for (let j = 30; j < h; j += 30) {
+        tradingCtx.beginPath(); tradingCtx.moveTo(0, j); tradingCtx.lineTo(w, j); tradingCtx.stroke();
+    }
+    
+    if (history.length < 2) return;
+    
+    const minPrice = Math.min(...history) * 0.98;
+    const maxPrice = Math.max(...history) * 1.02;
+    const priceRange = maxPrice - minPrice || 1;
+    
+    const toX = (i) => (i / (history.length - 1)) * (w - 20) + 10;
+    const toY = (price) => h - 20 - ((price - minPrice) / priceRange) * (h - 40);
+    
+    // Filled area under chart
+    const gradient = tradingCtx.createLinearGradient(0, 0, 0, h);
+    const lastGoingUp = history.length > 1 && history[history.length - 1] >= history[history.length - 2];
+    gradient.addColorStop(0, lastGoingUp ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    
+    tradingCtx.beginPath();
+    tradingCtx.moveTo(toX(0), toY(history[0]));
+    for (let i = 1; i < history.length; i++) {
+        tradingCtx.lineTo(toX(i), toY(history[i]));
+    }
+    tradingCtx.lineTo(toX(history.length - 1), h);
+    tradingCtx.lineTo(toX(0), h);
+    tradingCtx.closePath();
+    tradingCtx.fillStyle = gradient;
+    tradingCtx.fill();
+    
+    // Chart line
+    tradingCtx.strokeStyle = lastGoingUp ? '#10b981' : '#ef4444';
+    tradingCtx.lineWidth = 2.5;
+    tradingCtx.lineJoin = 'round';
+    tradingCtx.beginPath();
+    tradingCtx.moveTo(toX(0), toY(history[0]));
+    for (let i = 1; i < history.length; i++) {
+        tradingCtx.lineTo(toX(i), toY(history[i]));
+    }
+    tradingCtx.stroke();
+    
+    // Dot on last price
+    const lastX = toX(history.length - 1);
+    const lastY = toY(history[history.length - 1]);
+    tradingCtx.beginPath();
+    tradingCtx.arc(lastX, lastY, 5, 0, Math.PI * 2);
+    tradingCtx.fillStyle = lastGoingUp ? '#10b981' : '#ef4444';
+    tradingCtx.fill();
+}
+
 function setDiePips(dieEl, val) {
     dieEl.innerHTML = '';
     const pipPositions = {
@@ -1584,6 +1701,7 @@ function setDiePips(dieEl, val) {
     const pips = pipPositions[val] || [];
     for (let i = 0; i < 9; i++) {
         const gridCell = document.createElement('div');
+        gridCell.style.cssText = 'display:flex; justify-content:center; align-items:center;';
         if (pips.includes(i)) {
             const pip = document.createElement('span');
             pip.className = 'die-dot';
@@ -1592,3 +1710,4 @@ function setDiePips(dieEl, val) {
         dieEl.appendChild(gridCell);
     }
 }
+

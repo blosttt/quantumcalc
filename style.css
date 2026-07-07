@@ -1396,7 +1396,17 @@ body {
     display: flex;
     justify-content: center;
     gap: 8px;
-    margin: 20px 0;
+    margin: 10px 0;
+}
+
+.poker-section-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-dimmed);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 8px 0 4px 0;
+    padding-left: 2px;
 }
 
 .poker-card-wrapper {
