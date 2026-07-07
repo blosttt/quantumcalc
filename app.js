@@ -410,6 +410,110 @@ function closePaywallModal() {
 }
 
 // ==========================================================================
+// MODAL MANAGEMENT
+// ==========================================================================
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.add('show');
+}
+
+function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.classList.remove('show');
+}
+
+// ==========================================================================
+// MOCK PAYMENT PROCESSOR
+// ==========================================================================
+function openPaymentModal() {
+    closeModal('paywall-modal');
+    openModal('payment-modal');
+    
+    document.getElementById('payment-form').classList.remove('hide');
+    document.getElementById('payment-success-panel').classList.add('hide');
+    document.getElementById('payment-form').reset();
+    resetCardPreview();
+}
+
+function updateCardPreview() {
+    const holderInput = document.getElementById('card-holder').value;
+    const numberInput = document.getElementById('card-number').value;
+    const expiryInput = document.getElementById('card-expiry').value;
+    
+    let formattedNumber = numberInput.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim();
+    document.getElementById('card-number').value = formattedNumber;
+    document.getElementById('card-number-display').textContent = formattedNumber || '•••• •••• •••• ••••';
+    
+    document.getElementById('card-holder-val').textContent = holderInput.toUpperCase() || 'NOMBRE APELLIDO';
+    
+    let formattedExpiry = expiryInput;
+    if (expiryInput.length === 2 && !expiryInput.includes('/')) {
+        formattedExpiry = expiryInput + '/';
+        document.getElementById('card-expiry').value = formattedExpiry;
+    }
+    document.getElementById('card-expiry-val').textContent = formattedExpiry || 'MM/AA';
+}
+
+function resetCardPreview() {
+    document.getElementById('card-number-display').textContent = '•••• •••• •••• ••••';
+    document.getElementById('card-holder-val').textContent = 'NOMBRE APELLIDO';
+    document.getElementById('card-expiry-val').textContent = 'MM/AA';
+}
+
+function setupCardInputListeners() {
+    const numEl = document.getElementById('card-number');
+    const expEl = document.getElementById('card-expiry');
+    if (numEl) {
+        numEl.addEventListener('keypress', (e) => {
+            if (e.which < 48 || e.which > 57) e.preventDefault();
+        });
+    }
+    if (expEl) {
+        expEl.addEventListener('keypress', (e) => {
+            if (e.which < 48 || e.which > 57) e.preventDefault();
+        });
+    }
+}
+
+function handlePaymentSubmit(event) {
+    event.preventDefault();
+    
+    const submitBtn = document.getElementById('btn-submit-payment');
+    const payText = document.getElementById('btn-pay-text');
+    const spinner = document.getElementById('btn-pay-spinner');
+    
+    submitBtn.disabled = true;
+    payText.classList.add('hide');
+    spinner.classList.remove('hide');
+    
+    setTimeout(() => {
+        submitBtn.disabled = false;
+        payText.classList.remove('hide');
+        spinner.classList.add('hide');
+        
+        document.getElementById('payment-form').classList.add('hide');
+        document.getElementById('payment-success-panel').classList.remove('hide');
+        
+        subscriptionActive = true;
+        currentPrice = basePrice; // Reset price
+        updatePricesUI();
+    }, 1800);
+}
+
+function finishPaymentUnlock() {
+    closeModal('payment-modal');
+    
+    currentInput = pendingCalculationResult;
+    historyInput = currentExpression + ' =';
+    isEvaluated = true;
+    updateDisplay();
+    
+    showToast('¡Resultado desbloqueado con éxito!', 'success');
+}
+
+// ==========================================================================
+
+// ==========================================================================
 // NAVIGATION & STAKES CONTROLLER
 // ==========================================================================
 function getNextPrice() {
