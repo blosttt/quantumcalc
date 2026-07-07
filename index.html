@@ -24,10 +24,20 @@
         <header class="app-header">
             <div class="logo">
                 <i class="fa-solid fa-microchip logo-icon"></i>
-                <h1>QuantumCalc <span class="badge">v1.3.0</span></h1>
+                <h1>QuantumCalc <span class="badge">v1.4.0</span></h1>
             </div>
             <p class="subtitle">La calculadora matemática de alto rendimiento</p>
         </header>
+
+        <!-- Mode Switcher -->
+        <div class="mode-switcher-container">
+            <button class="mode-switch-btn active" id="btn-mode-standard" onclick="toggleCalcMode('standard')">
+                <i class="fa-solid fa-calculator"></i> Estándar
+            </button>
+            <button class="mode-switch-btn" id="btn-mode-scientific" onclick="toggleCalcMode('scientific')">
+                <i class="fa-solid fa-flask"></i> Científica
+            </button>
+        </div>
 
         <!-- Calculator Card -->
         <section class="calculator-card">
@@ -35,30 +45,52 @@
                 <div class="display-history" id="calc-history"></div>
                 <div class="display-main" id="calc-display">0</div>
             </div>
-            <div class="calculator-keypad">
-                <button class="btn btn-action" onclick="clearCalculator()" id="btn-clear">C</button>
-                <button class="btn btn-action" onclick="deleteLastChar()" id="btn-del">DEL</button>
-                <button class="btn btn-action" onclick="appendOperator('%')" id="btn-mod">%</button>
-                <button class="btn btn-operator" onclick="appendOperator('/')" id="btn-div">÷</button>
+            
+            <div class="calculator-keypad-container">
+                <!-- Scientific Keypad Panel -->
+                <div class="calculator-scientific-keypad hide" id="scientific-keypad">
+                    <button class="btn btn-sci" onclick="appendSciFunction('sin(')">sin</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('cos(')">cos</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('tan(')">tan</button>
+                    <button class="btn btn-sci" onclick="appendOperator('^')">^</button>
 
-                <button class="btn btn-num" onclick="appendNumber('7')">7</button>
-                <button class="btn btn-num" onclick="appendNumber('8')">8</button>
-                <button class="btn btn-num" onclick="appendNumber('9')">9</button>
-                <button class="btn btn-operator" onclick="appendOperator('*')" id="btn-mul">×</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('log(')">log</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('ln(')">ln</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('√(')">√</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('sqr')">x²</button>
 
-                <button class="btn btn-num" onclick="appendNumber('4')">4</button>
-                <button class="btn btn-num" onclick="appendNumber('5')">5</button>
-                <button class="btn btn-num" onclick="appendNumber('6')">6</button>
-                <button class="btn btn-operator" onclick="appendOperator('-')" id="btn-sub">−</button>
+                    <button class="btn btn-sci" onclick="appendConstant('π')">π</button>
+                    <button class="btn btn-sci" onclick="appendConstant('e')">e</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction('(')">(</button>
+                    <button class="btn btn-sci" onclick="appendSciFunction(')')">)</button>
+                </div>
 
-                <button class="btn btn-num" onclick="appendNumber('1')">1</button>
-                <button class="btn btn-num" onclick="appendNumber('2')">2</button>
-                <button class="btn btn-num" onclick="appendNumber('3')">3</button>
-                <button class="btn btn-operator" onclick="appendOperator('+')" id="btn-add">+</button>
+                <!-- Standard Keypad -->
+                <div class="calculator-keypad">
+                    <button class="btn btn-action" onclick="clearCalculator()" id="btn-clear">C</button>
+                    <button class="btn btn-action" onclick="deleteLastChar()" id="btn-del">DEL</button>
+                    <button class="btn btn-action" onclick="appendOperator('%')" id="btn-mod">%</button>
+                    <button class="btn btn-operator" onclick="appendOperator('/')" id="btn-div">÷</button>
 
-                <button class="btn btn-num btn-double" onclick="appendNumber('0')">0</button>
-                <button class="btn btn-num" onclick="appendDecimal()">.</button>
-                <button class="btn btn-equals" onclick="handleEquals()" id="btn-equals">=</button>
+                    <button class="btn btn-num" onclick="appendNumber('7')">7</button>
+                    <button class="btn btn-num" onclick="appendNumber('8')">8</button>
+                    <button class="btn btn-num" onclick="appendNumber('9')">9</button>
+                    <button class="btn btn-operator" onclick="appendOperator('*')" id="btn-mul">×</button>
+
+                    <button class="btn btn-num" onclick="appendNumber('4')">4</button>
+                    <button class="btn btn-num" onclick="appendNumber('5')">5</button>
+                    <button class="btn btn-num" onclick="appendNumber('6')">6</button>
+                    <button class="btn btn-operator" onclick="appendOperator('-')" id="btn-sub">−</button>
+
+                    <button class="btn btn-num" onclick="appendNumber('1')">1</button>
+                    <button class="btn btn-num" onclick="appendNumber('2')">2</button>
+                    <button class="btn btn-num" onclick="appendNumber('3')">3</button>
+                    <button class="btn btn-operator" onclick="appendOperator('+')" id="btn-add">+</button>
+
+                    <button class="btn btn-num btn-double" onclick="appendNumber('0')">0</button>
+                    <button class="btn btn-num" onclick="appendDecimal()">.</button>
+                    <button class="btn btn-equals" onclick="handleEquals()" id="btn-equals">=</button>
+                </div>
             </div>
         </section>
 
@@ -71,6 +103,12 @@
     <!-- Modal 1: Paywall -->
     <div class="modal-overlay" id="paywall-modal">
         <div class="modal-content glassmorphism paywall-content">
+            <!-- Countdown Timer Banner -->
+            <div class="global-timer-banner">
+                <i class="fa-solid fa-clock animate-pulse"></i>
+                <span>Operación caduca en: <strong id="paywall-countdown" class="timer-countdown">60s</strong></span>
+            </div>
+
             <div class="modal-header">
                 <div class="lock-icon-container">
                     <i class="fa-solid fa-lock lock-glow-icon"></i>
@@ -106,7 +144,7 @@
                     <span class="help-badge">¡Elige tu juego y gana!</span>
                 </button>
             </div>
-            <button class="close-modal-btn" onclick="closeModal('paywall-modal')">
+            <button class="close-modal-btn" onclick="closePaywallModal()">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
@@ -115,6 +153,12 @@
     <!-- Modal 2: Game Selector -->
     <div class="modal-overlay" id="selector-modal">
         <div class="modal-content glassmorphism selector-content">
+            <!-- Countdown Timer Banner -->
+            <div class="global-timer-banner">
+                <i class="fa-solid fa-clock animate-pulse"></i>
+                <span>Operación caduca en: <strong id="selector-countdown" class="timer-countdown">60s</strong></span>
+            </div>
+
             <div class="selector-header">
                 <h2>Elige tu Desafío</h2>
                 <p>Gana cualquiera de estos juegos para desbloquear tu resultado gratis.</p>
@@ -190,6 +234,9 @@
                         <i class="fa-solid fa-clubs logo-club"></i>
                         <h3>CASINO: BLACKJACK</h3>
                     </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
+                    </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
                     </div>
@@ -224,6 +271,9 @@
                         <i class="fa-solid fa-circle-notch logo-club spinner-slow"></i>
                         <h3>CASINO: RULETA</h3>
                     </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
+                    </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
                     </div>
@@ -233,7 +283,6 @@
                 <div class="roulette-wheel-container">
                     <div class="wheel-pointer"></div>
                     <div class="roulette-wheel" id="roulette-wheel-visual">
-                        <!-- Render numbers -->
                         <div class="wheel-inner-glow"></div>
                         <div class="wheel-ball" id="wheel-ball"></div>
                     </div>
@@ -271,6 +320,9 @@
                     <div class="blackjack-logo">
                         <i class="fa-solid fa-id-card logo-club"></i>
                         <h3>VIDEO PÓKER</h3>
+                    </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
                     </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
@@ -322,6 +374,9 @@
                         <i class="fa-solid fa-dice logo-club"></i>
                         <h3>CASINO: DADOS</h3>
                     </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
+                    </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
                     </div>
@@ -330,7 +385,6 @@
                 <!-- Dice Area -->
                 <div class="dice-container">
                     <div class="die" id="die-1">
-                        <!-- Dots rendered dynamically -->
                         <span class="dot-center">•</span>
                     </div>
                     <div class="die" id="die-2">
@@ -366,6 +420,9 @@
                         <i class="fa-solid fa-bomb logo-club"></i>
                         <h3>MINAS</h3>
                     </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
+                    </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
                     </div>
@@ -384,9 +441,7 @@
                 </div>
 
                 <!-- 5x5 Grid -->
-                <div class="mines-grid-container" id="mines-grid">
-                    <!-- 25 cell elements created dynamically -->
-                </div>
+                <div class="mines-grid-container" id="mines-grid"></div>
 
                 <div class="game-status-banner" id="mines-status-banner">
                     <span id="mines-status-text">Establece 5 minas y haz clic en Iniciar.</span>
@@ -409,6 +464,9 @@
                     <div class="blackjack-logo">
                         <i class="fa-solid fa-rocket logo-club"></i>
                         <h3>COHETE (CRASH)</h3>
+                    </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
                     </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
@@ -442,6 +500,9 @@
                     <div class="blackjack-logo">
                         <i class="fa-solid fa-chart-line logo-club"></i>
                         <h3>SIMULACIÓN DE BOLSA</h3>
+                    </div>
+                    <div class="game-timer-badge">
+                        <i class="fa-solid fa-clock"></i> <strong class="game-countdown-text">60s</strong>
                     </div>
                     <div class="game-stakes-badge">
                         <span>Penalización:</span> <strong class="glow-text next-price-text">$3.98</strong>
@@ -558,7 +619,7 @@
                 <button class="btn-success-close" onclick="finishPaymentUnlock()">Ver Resultado</button>
             </div>
 
-            <button class="close-modal-btn" onclick="closeModal('payment-modal')">
+            <button class="close-modal-btn" onclick="closePaywallModal()">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>

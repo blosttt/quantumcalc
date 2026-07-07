@@ -1,36 +1,33 @@
 // ==========================================================================
-// STATE VARIABLES
+// STATE VARIABLES & CHANNELS
 // ==========================================================================
 let currentInput = '0';
 let historyInput = '';
 let isEvaluated = false;
 let currentExpression = ''; // The math expression that got locked
+let activeCalcMode = 'standard'; // 'standard' or 'scientific'
 
-// Subscription & Paywall State
+// Subscription, Paywall & Timer State
 let subscriptionActive = false;
 let basePrice = 1.99;
 let currentPrice = basePrice;
 let activeGame = null; // 'blackjack', 'roulette', 'poker', 'dice', 'mines', 'crash', 'trading'
 
-// General Game Stakes/Price Formatting Utility
-function getNextPrice() {
-    return (currentPrice * 2).toFixed(2);
-}
+let paywallTimer = null;
+let paywallTimeLeft = 60; // 60 seconds limit
+let pendingCalculationResult = ''; // Result to display after unlock
 
-function updatePricesUI() {
-    const formattedPrice = currentPrice.toFixed(2);
-    const nextPrice = getNextPrice();
-    
-    // Calculator & Paywall Price
-    document.getElementById('sub-price').textContent = formattedPrice;
-    document.getElementById('pay-button-amount').textContent = `$${formattedPrice}`;
-    document.getElementById('selector-price-preview').textContent = `$${nextPrice}`;
-    
-    // In-game Penalty displays
-    document.querySelectorAll('.next-price-text').forEach(el => {
-        el.textContent = `$${nextPrice}`;
-    });
-}
+// Suits and Card Definitions for Games
+const SUITS = [
+    { symbol: '♥', color: 'red-suit' }, { symbol: '♦', color: 'red-suit' },
+    { symbol: '♣', color: 'black-suit' }, { symbol: '♠', color: 'black-suit' }
+];
+const RANKS = [
+    { name: '2', val: 2 }, { name: '3', val: 3 }, { name: '4', val: 4 },
+    { name: '5', val: 5 }, { name: '6', val: 6 }, { name: '7', val: 7 },
+    { name: '8', val: 8 }, { name: '9', val: 9 }, { name: '10', val: 10 },
+    { name: 'J', val: 10 }, { name: 'Q', val: 10 }, { name: 'K', val: 10 }, { name: 'A', val: 11 }
+];
 
 // ==========================================================================
 // INITIALIZATION
@@ -63,8 +60,28 @@ function showToast(message, type = 'info') {
 }
 
 // ==========================================================================
-// CALCULATOR LOGIC
+// CALCULATOR MODE SWITCHING & INPUTS
 // ==========================================================================
+function toggleCalcMode(mode) {
+    activeCalcMode = mode;
+    
+    const btnStd = document.getElementById('btn-mode-standard');
+    const btnSci = document.getElementById('btn-mode-scientific');
+    const sciKeypad = document.getElementById('scientific-keypad');
+    
+    if (mode === 'standard') {
+        btnStd.classList.add('active');
+        btnSci.classList.remove('active');
+        sciKeypad.classList.add('hide');
+    } else {
+        btnStd.classList.remove('active');
+        btnSci.classList.add('active');
+        sciKeypad.classList.remove('hide');
+    }
+    
+    clearCalculator();
+}
+
 function updateDisplay() {
     const displayElement = document.getElementById('calc-display');
     const historyElement = document.getElementById('calc-history');
@@ -76,26 +93,19 @@ function updateDisplay() {
 function formatDisplayNumber(numStr) {
     if (numStr === 'Error') return 'Error';
     
-    const parts = numStr.split(/([\+\-\*\/%])/);
+    // Format operators nicely for display
+    const parts = numStr.split(/([\+\-\*\/%\^\(\)]|sin|cos|tan|log|ln|√|π|e)/);
     return parts.map(part => {
-        if (/[\+\-\*\/%]/.test(part)) {
+        if (/[\+\-\*\/%\^]/.test(part)) {
             if (part === '/') return ' ÷ ';
             if (part === '*') return ' × ';
             if (part === '-') return ' − ';
             if (part === '+') return ' + ';
             if (part === '%') return ' % ';
+            if (part === '^') return ' ^ ';
             return ` ${part} `;
         }
-        
-        const dotIndex = part.indexOf('.');
-        if (dotIndex !== -1) {
-            const integerPart = part.substring(0, dotIndex);
-            const decimalPart = part.substring(dotIndex);
-            return parseFloat(integerPart).toLocaleString('es') + decimalPart;
-        } else {
-            const parsed = parseFloat(part);
-            return isNaN(parsed) ? part : parsed.toLocaleString('es');
-        }
+        return part;
     }).join('');
 }
 
@@ -121,7 +131,8 @@ function appendDecimal() {
         return;
     }
     
-    const segments = currentInput.split(/[\+\-\*\/%]/);
+    // Find characters after last operator/function boundary
+    const segments = currentInput.split(/[\+\-\*\/%\^\(\)]/);
     const lastSegment = segments[segments.length - 1];
     
     if (!lastSegment.includes('.')) {
@@ -136,10 +147,43 @@ function appendOperator(op) {
     }
     
     const lastChar = currentInput.slice(-1);
-    if (/[\+\-\*\/%]/.test(lastChar)) {
+    if (/[\+\-\*\/%\^]/.test(lastChar)) {
         currentInput = currentInput.slice(0, -1) + op;
     } else {
         currentInput += op;
+    }
+    updateDisplay();
+}
+
+function appendSciFunction(fnName) {
+    if (isEvaluated) {
+        currentInput = '';
+        isEvaluated = false;
+    }
+    
+    if (fnName === 'sqr') {
+        // Appends square power to current expression
+        currentInput += '^2';
+    } else {
+        if (currentInput === '0') {
+            currentInput = fnName;
+        } else {
+            currentInput += fnName;
+        }
+    }
+    updateDisplay();
+}
+
+function appendConstant(constantChar) {
+    if (isEvaluated) {
+        currentInput = constantChar;
+        isEvaluated = false;
+    } else {
+        if (currentInput === '0') {
+            currentInput = constantChar;
+        } else {
+            currentInput += constantChar;
+        }
     }
     updateDisplay();
 }
@@ -157,38 +201,48 @@ function deleteLastChar() {
         return;
     }
     
-    if (currentInput.length > 1) {
+    // Delete functions as a single block if possible (e.g. sin(, cos(, log(, ln()
+    const matchFn = currentInput.match(/(sin\(|cos\(|tan\(|log\(|ln\(|√\()$/);
+    if (matchFn) {
+        currentInput = currentInput.slice(0, -matchFn[0].length);
+    } else if (currentInput.length > 1) {
         currentInput = currentInput.slice(0, -1);
     } else {
+        currentInput = '0';
+    }
+    
+    if (currentInput === '') {
         currentInput = '0';
     }
     updateDisplay();
 }
 
-// Dynamic difficulty pricing calculator
-function calculateDifficulty(expression) {
-    const operators = (expression.match(/[\+\-\*\/%]/g) || []).length;
-    const decimals = (expression.match(/\./g) || []).length;
+// ==========================================================================
+// MATHEMATICAL EVALUATION PARSER
+// ==========================================================================
+function parseScientificExpression(expr) {
+    let parsed = expr;
     
-    let score = 1;
-    score += operators * 0.75;
-    score += decimals * 0.5;
+    // 1. Replace Constants (protect inside words by specifying boundary rules)
+    parsed = parsed.replace(/π/g, 'Math.PI');
+    parsed = parsed.replace(/\be\b/g, 'Math.E');
     
-    const numbers = expression.split(/[\+\-\*\/%]/).map(parseFloat);
-    const hasLargeNum = numbers.some(n => !isNaN(n) && Math.abs(n) > 99);
-    if (hasLargeNum) score += 0.75;
+    // 2. Replace scientific math functions
+    parsed = parsed.replace(/sin\(/g, 'Math.sin(');
+    parsed = parsed.replace(/cos\(/g, 'Math.cos(');
+    parsed = parsed.replace(/tan\(/g, 'Math.tan(');
+    parsed = parsed.replace(/log\(/g, 'Math.log10(');
+    parsed = parsed.replace(/ln\(/g, 'Math.log(');
+    parsed = parsed.replace(/√\(/g, 'Math.sqrt(');
     
-    if (score < 2) {
-        return { name: 'Simple', price: 0.99, class: 'badge-simple' };
-    } else if (score < 4) {
-        return { name: 'Media', price: 2.49, class: 'badge-medium' };
-    } else {
-        return { name: 'Avanzada', price: 4.99, class: 'badge-advanced' };
-    }
+    // 3. Replace Power notation
+    parsed = parsed.replace(/\^/g, '**');
+    
+    return parsed;
 }
 
 function handleEquals() {
-    if (currentInput === '0' || /[\+\-\*\/%]$/.test(currentInput)) {
+    if (currentInput === '0' || /[\+\-\*\/%\^]$/.test(currentInput)) {
         return;
     }
 
@@ -196,12 +250,18 @@ function handleEquals() {
     
     let result = '';
     try {
-        const sanitized = currentExpression.replace(/[^0-9\+\-\*\/\%\.]/g, '');
+        // Parse screens representation to JS Math object calls
+        const parsedExpression = parseScientificExpression(currentExpression);
+        
+        // Sanitize to only permit numbers, Math attributes, operators, decimals, and parentheses
+        const sanitized = parsedExpression.replace(/[^0-9\+\-\*\/\%\.\(\)MathPIEsinclog1rt\*\*]/g, '');
+        
         const evalResult = new Function(`return (${sanitized})`)();
         
         if (evalResult === Infinity || isNaN(evalResult)) {
             result = 'Error';
         } else {
+            // Precision scaling
             result = Number(Math.round(evalResult + 'e+8') + 'e-8').toString();
         }
     } catch (e) {
@@ -224,33 +284,149 @@ function handleEquals() {
         updateDisplay();
         showToast('Cálculo premium completado', 'success');
     } else {
-        // Calculate dynamic difficulty and price
+        // Evaluate dynamic difficulty and base price
         const difficulty = calculateDifficulty(currentExpression);
         basePrice = difficulty.price;
         currentPrice = difficulty.price;
         updatePricesUI();
         
-        // Update Difficulty Badge in UI
+        // Update difficulty badge
         const badge = document.getElementById('difficulty-badge');
         if (badge) {
             badge.textContent = difficulty.name;
             badge.className = `badge ${difficulty.class}`;
         }
-
+        
+        // Trigger Countdown Expiry Timer
+        startPaywallCountdown();
+        
         openModal('paywall-modal');
         document.getElementById('locked-expression').textContent = formatDisplayNumber(currentExpression);
     }
 }
 
-// ==========================================================================
-// MODAL & NAVIGATION SYSTEM
-// ==========================================================================
-function openModal(id) {
-    document.getElementById(id).classList.add('show');
+// Dynamic difficulty pricing calculator
+function calculateDifficulty(expression) {
+    const operators = (expression.match(/[\+\-\*\/%]/g) || []).length;
+    const decimals = (expression.match(/\./g) || []).length;
+    
+    // Detect scientific operators
+    const sciOperators = (expression.match(/(sin|cos|tan|log|ln|√|\^)/g) || []).length;
+    const constants = (expression.match(/(π|e)/g) || []).length;
+    
+    let score = 1;
+    score += operators * 0.75;
+    score += decimals * 0.5;
+    score += sciOperators * 2.5; // High value for complex math
+    score += constants * 1.5;
+    
+    const numbers = expression.split(/[\+\-\*\/%\^\(\)]/).map(parseFloat);
+    const hasLargeNum = numbers.some(n => !isNaN(n) && Math.abs(n) > 99);
+    if (hasLargeNum) score += 0.75;
+    
+    if (score >= 5.0) {
+        return { name: 'Científica / Ultra', price: 9.99, class: 'badge-scientific' };
+    } else if (score >= 4.0) {
+        return { name: 'Avanzada', price: 4.99, class: 'badge-advanced' };
+    } else if (score >= 2.0) {
+        return { name: 'Media', price: 2.49, class: 'badge-medium' };
+    } else {
+        return { name: 'Simple', price: 0.99, class: 'badge-simple' };
+    }
 }
 
-function closeModal(id) {
-    document.getElementById(id).classList.remove('show');
+// ==========================================================================
+// COUNTDOWN EXPIRY TIMER LOGIC
+// ==========================================================================
+function startPaywallCountdown() {
+    stopPaywallCountdown(); // Clear any running timer
+    paywallTimeLeft = 60;
+    
+    updateTimerUI();
+    
+    paywallTimer = setInterval(() => {
+        paywallTimeLeft--;
+        updateTimerUI();
+        
+        if (paywallTimeLeft <= 0) {
+            handlePaywallExpiry();
+        }
+    }, 1000);
+}
+
+function stopPaywallCountdown() {
+    if (paywallTimer) {
+        clearInterval(paywallTimer);
+        paywallTimer = null;
+    }
+}
+
+function updateTimerUI() {
+    const timeText = `${paywallTimeLeft}s`;
+    
+    // Update labels in Paywall & Selector
+    const paywallText = document.getElementById('paywall-countdown');
+    const selectorText = document.getElementById('selector-countdown');
+    
+    if (paywallText) {
+        paywallText.textContent = timeText;
+        paywallText.classList.toggle('danger-alert', paywallTimeLeft <= 10);
+    }
+    if (selectorText) {
+        selectorText.textContent = timeText;
+        selectorText.classList.toggle('danger-alert', paywallTimeLeft <= 10);
+    }
+    
+    // Update in-game countdown texts
+    document.querySelectorAll('.game-countdown-text').forEach(el => {
+        el.textContent = timeText;
+        el.classList.toggle('danger-alert', paywallTimeLeft <= 10);
+    });
+}
+
+function handlePaywallExpiry() {
+    stopPaywallCountdown();
+    
+    // Close all game/payment views
+    closeModal('paywall-modal');
+    closeModal('selector-modal');
+    closeModal('payment-modal');
+    if (activeGame) {
+        closeModal(`${activeGame}-modal`);
+        if (activeGame === 'crash') stopCrashLoop();
+        if (activeGame === 'trading') stopTradingLoop();
+        activeGame = null;
+    }
+    
+    // Wipe current calculator expression & results
+    clearCalculator();
+    showToast('¡Tiempo agotado! Has perdido la operación y el resultado.', 'danger');
+}
+
+function closePaywallModal() {
+    stopPaywallCountdown();
+    closeModal('paywall-modal');
+    clearCalculator(); // Forfeits results if closed manually
+}
+
+// ==========================================================================
+// NAVIGATION & STAKES CONTROLLER
+// ==========================================================================
+function getNextPrice() {
+    return (currentPrice * 2).toFixed(2);
+}
+
+function updatePricesUI() {
+    const formattedPrice = currentPrice.toFixed(2);
+    const nextPrice = getNextPrice();
+    
+    document.getElementById('sub-price').textContent = formattedPrice;
+    document.getElementById('pay-button-amount').textContent = `$${formattedPrice}`;
+    document.getElementById('selector-price-preview').textContent = `$${nextPrice}`;
+    
+    document.querySelectorAll('.next-price-text').forEach(el => {
+        el.textContent = `$${nextPrice}`;
+    });
 }
 
 function openGameSelector() {
@@ -269,7 +445,6 @@ function selectGame(gameName) {
     activeGame = gameName;
     updatePricesUI();
     
-    // Open appropriate game modal and run initializer
     if (gameName === 'blackjack') {
         openModal('blackjack-modal');
         startNewBlackjackRound();
@@ -298,11 +473,11 @@ function closeGameAndReturn() {
     const gameModalId = `${activeGame}-modal`;
     closeModal(gameModalId);
     
-    // Stop loops/intervals for active games
     if (activeGame === 'crash') stopCrashLoop();
     if (activeGame === 'trading') stopTradingLoop();
     
     if (subscriptionActive) {
+        stopPaywallCountdown();
         finishPaymentUnlock();
     } else {
         openGameSelector();
@@ -311,90 +486,14 @@ function closeGameAndReturn() {
 }
 
 // ==========================================================================
-// MOCK PAYMENT PROCESSOR
-// ==========================================================================
-function openPaymentModal() {
-    closeModal('paywall-modal');
-    openModal('payment-modal');
-    document.getElementById('payment-form').classList.remove('hide');
-    document.getElementById('payment-success-panel').classList.add('hide');
-    document.getElementById('payment-form').reset();
-    resetCardPreview();
-}
-
-function updateCardPreview() {
-    const holderInput = document.getElementById('card-holder').value;
-    const numberInput = document.getElementById('card-number').value;
-    const expiryInput = document.getElementById('card-expiry').value;
-    
-    let formattedNumber = numberInput.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim();
-    document.getElementById('card-number').value = formattedNumber;
-    document.getElementById('card-number-display').textContent = formattedNumber || '•••• •••• •••• ••••';
-    document.getElementById('card-holder-val').textContent = holderInput.toUpperCase() || 'NOMBRE APELLIDO';
-    
-    let formattedExpiry = expiryInput;
-    if (expiryInput.length === 2 && !expiryInput.includes('/')) {
-        formattedExpiry = expiryInput + '/';
-        document.getElementById('card-expiry').value = formattedExpiry;
-    }
-    document.getElementById('card-expiry-val').textContent = formattedExpiry || 'MM/AA';
-}
-
-function resetCardPreview() {
-    document.getElementById('card-number-display').textContent = '•••• •••• •••• ••••';
-    document.getElementById('card-holder-val').textContent = 'NOMBRE APELLIDO';
-    document.getElementById('card-expiry-val').textContent = 'MM/AA';
-}
-
-function setupCardInputListeners() {
-    document.getElementById('card-number').addEventListener('keypress', (e) => {
-        if (e.which < 48 || e.which > 57) e.preventDefault();
-    });
-    document.getElementById('card-expiry').addEventListener('keypress', (e) => {
-        if (e.which < 48 || e.which > 57) e.preventDefault();
-    });
-}
-
-function handlePaymentSubmit(event) {
-    event.preventDefault();
-    const submitBtn = document.getElementById('btn-submit-payment');
-    const payText = document.getElementById('btn-pay-text');
-    const spinner = document.getElementById('btn-pay-spinner');
-    
-    submitBtn.disabled = true;
-    payText.classList.add('hide');
-    spinner.classList.remove('hide');
-    
-    setTimeout(() => {
-        submitBtn.disabled = false;
-        payText.classList.remove('hide');
-        spinner.classList.add('hide');
-        document.getElementById('payment-form').classList.add('hide');
-        document.getElementById('payment-success-panel').classList.remove('hide');
-        
-        subscriptionActive = true;
-        currentPrice = basePrice;
-        updatePricesUI();
-    }, 1800);
-}
-
-function finishPaymentUnlock() {
-    closeModal('payment-modal');
-    currentInput = pendingCalculationResult;
-    historyInput = currentExpression + ' =';
-    isEvaluated = true;
-    updateDisplay();
-    showToast('¡Resultado desbloqueado con éxito!', 'success');
-}
-
-// ==========================================================================
-// GENERAL GAME RESOLUTION SYSTEM
+// GAME SESSIONS HANDLER
 // ==========================================================================
 function resolveGameSession(outcome, gameName, statusTextEl, statusBannerEl, exitBtnEl, resetBtnEl) {
     if (outcome === 'win') {
         subscriptionActive = true;
         currentPrice = basePrice;
         updatePricesUI();
+        stopPaywallCountdown(); // Safe stop
         
         statusBannerEl.className = 'game-status-banner toast-success';
         statusTextEl.innerHTML = `<span class="status-victory">¡VICTORIA!</span> El resultado ha sido desbloqueado gratis.`;
@@ -440,17 +539,6 @@ let blackjackPlayerHand = [];
 let blackjackDealerHand = [];
 let blackjackGameState = 'idle';
 
-const SUITS = [
-    { symbol: '♥', color: 'red-suit' }, { symbol: '♦', color: 'red-suit' },
-    { symbol: '♣', color: 'black-suit' }, { symbol: '♠', color: 'black-suit' }
-];
-const RANKS = [
-    { name: '2', val: 2 }, { name: '3', val: 3 }, { name: '4', val: 4 },
-    { name: '5', val: 5 }, { name: '6', val: 6 }, { name: '7', val: 7 },
-    { name: '8', val: 8 }, { name: '9', val: 9 }, { name: '10', val: 10 },
-    { name: 'J', val: 10 }, { name: 'Q', val: 10 }, { name: 'K', val: 10 }, { name: 'A', val: 11 }
-];
-
 function startNewBlackjackRound() {
     blackjackDeck = [];
     for (let suit of SUITS) {
@@ -458,7 +546,6 @@ function startNewBlackjackRound() {
             blackjackDeck.push({ rank: rank.name, value: rank.val, symbol: suit.symbol, color: suit.color });
         }
     }
-    // Shuffle
     for (let i = blackjackDeck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [blackjackDeck[i], blackjackDeck[j]] = [blackjackDeck[j], blackjackDeck[i]];
@@ -481,7 +568,6 @@ function startNewBlackjackRound() {
     
     updateBlackjackUI();
     
-    // Natural Blackjack check
     if (getHandScore(blackjackPlayerHand) === 21) {
         blackjackGameState = 'dealer-turn';
         updateBlackjackUI();
@@ -490,20 +576,6 @@ function startNewBlackjackRound() {
             else resolveBlackjack('win');
         }, 500);
     }
-}
-
-function getHandScore(hand) {
-    let score = 0;
-    let aces = 0;
-    for (let card of hand) {
-        score += card.value;
-        if (card.rank === 'A') aces++;
-    }
-    while (score > 21 && aces > 0) {
-        score -= 10;
-        aces--;
-    }
-    return score;
 }
 
 function updateBlackjackUI() {
@@ -527,22 +599,6 @@ function updateBlackjackUI() {
     } else {
         document.getElementById('dealer-score').textContent = getHandScore(blackjackDealerHand);
     }
-}
-
-function createCardDOM(card, isFaceUp) {
-    const el = document.createElement('div');
-    el.className = 'card' + (isFaceUp ? '' : ' flipped');
-    el.innerHTML = `
-        <div class="card-face card-front ${card.color}">
-            <div class="card-top-left">
-                <span class="card-rank">${card.rank}</span>
-                <span class="card-suit">${card.symbol}</span>
-            </div>
-            <div class="card-center-suit">${card.symbol}</div>
-        </div>
-        <div class="card-face card-back"></div>
-    `;
-    return el;
 }
 
 function blackjackHit() {
@@ -594,9 +650,8 @@ function resolveBlackjack(outcome) {
 // ==========================================================================
 // GAME 2: ROULETTE
 // ==========================================================================
-let rouletteSelectedBet = null; // 'red', 'black', or 'number'
+let rouletteSelectedBet = null;
 const rouletteRedNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
-const rouletteBlackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
 
 function initRouletteGame() {
     rouletteSelectedBet = null;
@@ -611,9 +666,7 @@ function initRouletteGame() {
     
     const banner = document.getElementById('roulette-status-banner');
     banner.className = 'game-status-banner';
-    document.getElementById('roulette-status-text').textContent = 'Selecciona una apuesta (Rojo, Negro o Número) y gira.';
-    
-    // Reset wheel visual angle
+    document.getElementById('roulette-status-text').textContent = 'Elige una apuesta (Rojo, Negro o Número) y gira.';
     document.getElementById('roulette-wheel-visual').style.transform = 'rotate(0deg)';
 }
 
@@ -622,10 +675,7 @@ function setRouletteBet(type) {
     document.getElementById('bet-btn-red').classList.toggle('active', type === 'red');
     document.getElementById('bet-btn-black').classList.toggle('active', type === 'black');
     document.getElementById('bet-number-val').classList.toggle('active', type === 'number');
-    
-    if (type !== 'number') {
-        document.getElementById('bet-number-val').value = '';
-    }
+    if (type !== 'number') document.getElementById('bet-number-val').value = '';
 }
 
 function playRouletteSpin() {
@@ -645,21 +695,14 @@ function playRouletteSpin() {
     }
     
     document.getElementById('btn-spin-wheel').disabled = true;
-    
     const statusText = document.getElementById('roulette-status-text');
     statusText.textContent = '¡La ruleta está girando...! No va más.';
     
-    // Choose a winning number 0-36
     const winningNumber = Math.floor(Math.random() * 37);
-    
-    // Spin animation: degrees are 360 * turns + calculated degree for that pocket
-    // To make it simple, we rotate a random large amount
     const spinDegrees = 1440 + Math.floor(Math.random() * 360);
-    const wheel = document.getElementById('roulette-wheel-visual');
-    wheel.style.transform = `rotate(${spinDegrees}deg)`;
+    document.getElementById('roulette-wheel-visual').style.transform = `rotate(${spinDegrees}deg)`;
     
     setTimeout(() => {
-        // Determine pocket color
         let color = 'Verde (0)';
         let won = false;
         
@@ -680,7 +723,6 @@ function playRouletteSpin() {
         const banner = document.getElementById('roulette-status-banner');
         const exitBtn = document.getElementById('btn-roulette-exit');
         const spinBtn = document.getElementById('btn-spin-wheel');
-        
         spinBtn.classList.add('hide');
         
         if (won) {
@@ -690,14 +732,13 @@ function playRouletteSpin() {
             statusText.innerHTML = `Cayó el número <strong>${winningNumber} (${color})</strong>. Has fallado.`;
             resolveGameSession('lose', 'roulette', statusText, banner, exitBtn, null);
             
-            // Allow replay
             setTimeout(() => {
                 spinBtn.textContent = 'Girar de nuevo';
                 spinBtn.classList.remove('hide');
                 spinBtn.disabled = false;
             }, 1000);
         }
-    }, 4000); // 4 seconds animation
+    }, 4000);
 }
 
 // ==========================================================================
@@ -706,7 +747,7 @@ function playRouletteSpin() {
 let pokerDeck = [];
 let pokerHand = [];
 let pokerHolds = [false, false, false, false, false];
-let pokerStep = 1; // 1 = Initial deal, 2 = Discard/Final Draw
+let pokerStep = 1;
 
 function initPokerGame() {
     pokerHand = [];
@@ -722,10 +763,8 @@ function initPokerGame() {
     banner.className = 'game-status-banner';
     document.getElementById('poker-status-text').textContent = 'Presiona "Repartir" para recibir tus primeras 5 cartas.';
     
-    // Clear display
     for (let i = 0; i < 5; i++) {
-        const cardContainer = document.getElementById(`poker-card-${i}`);
-        cardContainer.innerHTML = '<div class="card-face card-back"></div>';
+        document.getElementById(`poker-card-${i}`).innerHTML = '<div class="card-face card-back"></div>';
         document.getElementById(`hold-badge-${i}`).classList.add('hide');
     }
 }
@@ -735,7 +774,6 @@ function handlePokerDeal() {
     const statusText = document.getElementById('poker-status-text');
     
     if (pokerStep === 1) {
-        // Create new deck & shuffle
         pokerDeck = [];
         for (let suit of SUITS) {
             for (let rank of RANKS) {
@@ -747,10 +785,8 @@ function handlePokerDeal() {
             [pokerDeck[i], pokerDeck[j]] = [pokerDeck[j], pokerDeck[i]];
         }
         
-        // Deal 5 cards
         pokerHand = [pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop(), pokerDeck.pop()];
         pokerHolds = [false, false, false, false, false];
-        
         renderPokerHand();
         
         pokerStep = 2;
@@ -758,23 +794,15 @@ function handlePokerDeal() {
         statusText.textContent = 'Selecciona las cartas que deseas MANTENER, luego presiona Cambiar.';
     } else if (pokerStep === 2) {
         dealBtn.disabled = true;
-        
-        // Draw new cards for unheld positions
         for (let i = 0; i < 5; i++) {
-            if (!pokerHolds[i]) {
-                pokerHand[i] = pokerDeck.pop();
-            }
+            if (!pokerHolds[i]) pokerHand[i] = pokerDeck.pop();
         }
-        
         renderPokerHand();
         
-        // Evaluate
         const evaluation = evaluatePokerHand(pokerHand);
         const win = evaluation.payout;
-        
         const banner = document.getElementById('poker-status-banner');
         const exitBtn = document.getElementById('btn-poker-exit');
-        
         dealBtn.classList.add('hide');
         
         if (win) {
@@ -784,7 +812,6 @@ function handlePokerDeal() {
             statusText.innerHTML = `DERROTA. Mano obtenida: <strong>${evaluation.name}</strong> (Se necesita Pareja de J o mejor).`;
             resolveGameSession('lose', 'poker', statusText, banner, exitBtn, null);
             
-            // Allow replay
             setTimeout(() => {
                 dealBtn.textContent = 'Repartir de nuevo';
                 dealBtn.classList.remove('hide');
@@ -796,15 +823,14 @@ function handlePokerDeal() {
 }
 
 function togglePokerHold(index) {
-    if (pokerStep !== 2) return; // Only toggleable after initial deal
+    if (pokerStep !== 2) return;
     pokerHolds[index] = !pokerHolds[index];
     document.getElementById(`hold-badge-${index}`).classList.toggle('hide', !pokerHolds[index]);
 }
 
 function renderPokerHand() {
     pokerHand.forEach((card, i) => {
-        const cardContainer = document.getElementById(`poker-card-${i}`);
-        cardContainer.innerHTML = `
+        document.getElementById(`poker-card-${i}`).innerHTML = `
             <div class="card-face card-front ${card.color}" style="position:relative; width:100%; height:100%; backface-visibility:visible; transform:none;">
                 <div class="card-top-left">
                     <span class="card-rank">${card.rank}</span>
@@ -817,7 +843,6 @@ function renderPokerHand() {
 }
 
 function evaluatePokerHand(hand) {
-    // Collect counts and suits
     const rankCounts = {};
     const suits = [];
     const values = [];
@@ -826,7 +851,6 @@ function evaluatePokerHand(hand) {
         rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1;
         suits.push(c.symbol);
         
-        // Map ranks to numeric order for straight check (2=2 ... 10=10, J=11, Q=12, K=13, A=14)
         let rVal = c.value;
         if (c.rank === 'J') rVal = 11;
         if (c.rank === 'Q') rVal = 12;
@@ -836,16 +860,12 @@ function evaluatePokerHand(hand) {
     });
     
     values.sort((a,b) => a - b);
-    
-    // Check flush
     const isFlush = suits.every(s => s === suits[0]);
     
-    // Check straight
     let isStraight = false;
     if (values[4] - values[0] === 4 && new Set(values).size === 5) {
         isStraight = true;
     }
-    // Ace-low straight check (A-2-3-4-5)
     if (!isStraight && values[0] === 2 && values[1] === 3 && values[2] === 4 && values[3] === 5 && values[4] === 14) {
         isStraight = true;
     }
@@ -877,7 +897,6 @@ function evaluatePokerHand(hand) {
         return { name: 'Doble Pareja (Two Pair)', payout: true };
     }
     if (counts[0] === 2) {
-        // Find which rank is the pair
         let pairRank = '';
         for (let r in rankCounts) {
             if (rankCounts[r] === 2) pairRank = r;
@@ -889,14 +908,13 @@ function evaluatePokerHand(hand) {
             return { name: `Pareja de ${pairRank}`, payout: false };
         }
     }
-    
     return { name: 'Carta Alta', payout: false };
 }
 
 // ==========================================================================
-// GAME 4: DICES
+// GAME 4: DICE
 // ==========================================================================
-let diceSelectedBet = null; // 'under' (sum < 7), 'seven' (sum == 7), 'over' (sum > 7)
+let diceSelectedBet = null;
 
 function initDiceGame() {
     diceSelectedBet = null;
@@ -912,7 +930,6 @@ function initDiceGame() {
     banner.className = 'game-status-banner';
     document.getElementById('dice-status-text').textContent = 'Elige si la suma será Menor, Mayor o Igual a 7.';
     
-    // Reset dice visual
     setDiePips(document.getElementById('die-1'), 1);
     setDiePips(document.getElementById('die-2'), 1);
 }
@@ -922,30 +939,6 @@ function setDiceBet(type) {
     document.getElementById('bet-dice-under').classList.toggle('active', type === 'under');
     document.getElementById('bet-dice-seven').classList.toggle('active', type === 'seven');
     document.getElementById('bet-dice-over').classList.toggle('active', type === 'over');
-}
-
-function setDiePips(dieEl, val) {
-    dieEl.innerHTML = '';
-    // Standard layout positions for pips in 3x3 grid
-    const pipPositions = {
-        1: [4],
-        2: [0, 8],
-        3: [0, 4, 8],
-        4: [0, 2, 6, 8],
-        5: [0, 2, 4, 6, 8],
-        6: [0, 2, 3, 5, 6, 8]
-    };
-    
-    const pips = pipPositions[val] || [];
-    for (let i = 0; i < 9; i++) {
-        const gridCell = document.createElement('div');
-        if (pips.includes(i)) {
-            const pip = document.createElement('span');
-            pip.className = 'die-dot';
-            gridCell.appendChild(pip);
-        }
-        dieEl.appendChild(gridCell);
-    }
 }
 
 function rollDiceGame() {
@@ -961,7 +954,6 @@ function rollDiceGame() {
     
     const die1 = document.getElementById('die-1');
     const die2 = document.getElementById('die-2');
-    
     die1.classList.add('rolling');
     die2.classList.add('rolling');
     
@@ -972,7 +964,6 @@ function rollDiceGame() {
     setTimeout(() => {
         die1.classList.remove('rolling');
         die2.classList.remove('rolling');
-        
         setDiePips(die1, val1);
         setDiePips(die2, val2);
         
@@ -983,7 +974,6 @@ function rollDiceGame() {
         
         const banner = document.getElementById('dice-status-banner');
         const exitBtn = document.getElementById('btn-dice-exit');
-        
         rollBtn.classList.add('hide');
         
         if (targetMatch) {
@@ -993,14 +983,13 @@ function rollDiceGame() {
             statusText.innerHTML = `Tirada: <strong>${val1} + ${val2} = ${sum}</strong>. Has fallado.`;
             resolveGameSession('lose', 'dice', statusText, banner, exitBtn, null);
             
-            // Allow replay
             setTimeout(() => {
                 rollBtn.textContent = 'Lanzar de nuevo';
                 rollBtn.classList.remove('hide');
                 rollBtn.disabled = false;
             }, 1000);
         }
-    }, 700); // 700ms animation
+    }, 700);
 }
 
 // ==========================================================================
@@ -1010,13 +999,12 @@ let minesGrid = [];
 let minesCount = 5;
 let minesGemsFound = 0;
 let minesActiveMultiplier = 1.00;
-let minesGameState = 'not-started'; // 'not-started', 'playing', 'exploded', 'cashed-out'
+let minesGameState = 'not-started';
 
 function initMinesGame() {
     minesGemsFound = 0;
     minesActiveMultiplier = 1.00;
     minesGameState = 'not-started';
-    
     document.getElementById('mines-gems-found').textContent = '0/20';
     document.getElementById('mines-multiplier').textContent = '1.00x';
     
@@ -1029,7 +1017,6 @@ function initMinesGame() {
     banner.className = 'game-status-banner';
     document.getElementById('mines-status-text').textContent = 'Presiona "Iniciar Juego" para colocar las 5 minas.';
     
-    // Clear and draw blank grid
     const gridContainer = document.getElementById('mines-grid');
     gridContainer.innerHTML = '';
     for (let i = 0; i < 25; i++) {
@@ -1047,16 +1034,12 @@ function startMinesGame() {
     
     document.getElementById('btn-mines-start').classList.add('hide');
     document.getElementById('btn-mines-cashout').classList.remove('hide');
-    document.getElementById('btn-mines-cashout').disabled = true; // Disabled until at least 1 gem is found
-    
-    document.getElementById('mines-gems-found').textContent = '0/20';
-    document.getElementById('mines-multiplier').textContent = '1.00x';
+    document.getElementById('btn-mines-cashout').disabled = true;
     
     const banner = document.getElementById('mines-status-banner');
     banner.className = 'game-status-banner';
     document.getElementById('mines-status-text').textContent = '¡Encuentra gemas! Pero ten cuidado con las 5 minas.';
     
-    // Place 5 random mines
     minesGrid = Array(25).fill('gem');
     let placedMines = 0;
     while (placedMines < minesCount) {
@@ -1067,13 +1050,11 @@ function startMinesGame() {
         }
     }
     
-    // Re-draw grid with click listeners
     const gridContainer = document.getElementById('mines-grid');
     gridContainer.innerHTML = '';
     for (let i = 0; i < 25; i++) {
         const cell = document.createElement('div');
         cell.className = 'mine-cell';
-        cell.textContent = '';
         cell.addEventListener('click', () => handleMineCellClick(i, cell));
         gridContainer.appendChild(cell);
     }
@@ -1084,13 +1065,10 @@ function handleMineCellClick(index, cellEl) {
     if (cellEl.classList.contains('revealed')) return;
     
     cellEl.classList.add('revealed');
-    
     if (minesGrid[index] === 'mine') {
-        // BOOM! Explode
         minesGameState = 'exploded';
         cellEl.classList.add('mine');
         cellEl.innerHTML = '<i class="fa-solid fa-bomb"></i>';
-        
         revealAllMines();
         
         const banner = document.getElementById('mines-status-banner');
@@ -1103,47 +1081,27 @@ function handleMineCellClick(index, cellEl) {
         statusText.innerHTML = '<strong>¡BOMBA!</strong> Explotaste.';
         resolveGameSession('lose', 'mines', statusText, banner, exitBtn, null);
         
-        // Re-enable start btn for retry
         setTimeout(() => {
             startBtn.classList.remove('hide');
             startBtn.disabled = false;
             startBtn.textContent = 'Intentar de nuevo';
         }, 1000);
     } else {
-        // Found Gem
         cellEl.classList.add('gem');
         cellEl.innerHTML = '<i class="fa-solid fa-gem"></i>';
         minesGemsFound++;
-        
-        // Calculate new multiplier: 1.00 + 0.20 per gem
         minesActiveMultiplier = 1.00 + (minesGemsFound * 0.20);
         
         document.getElementById('mines-gems-found').textContent = `${minesGemsFound}/20`;
         document.getElementById('mines-multiplier').textContent = `${minesActiveMultiplier.toFixed(2)}x`;
-        
         document.getElementById('btn-mines-cashout').disabled = false;
         
-        // Check win condition (all 20 gems found)
-        if (minesGemsFound === 20) {
-            cashoutMinesGame();
-        }
-    }
-}
-
-function revealAllMines() {
-    const gridContainer = document.getElementById('mines-grid');
-    const cells = gridContainer.children;
-    for (let i = 0; i < 25; i++) {
-        if (minesGrid[i] === 'mine') {
-            cells[i].classList.add('revealed', 'mine');
-            cells[i].innerHTML = '<i class="fa-solid fa-bomb"></i>';
-        }
+        if (minesGemsFound === 20) cashoutMinesGame();
     }
 }
 
 function cashoutMinesGame() {
     if (minesGameState !== 'playing' || minesGemsFound === 0) return;
-    
     minesGameState = 'cashed-out';
     document.getElementById('btn-mines-cashout').classList.add('hide');
     
@@ -1161,15 +1119,13 @@ function cashoutMinesGame() {
 let crashMultiplier = 1.00;
 let crashPoint = 1.00;
 let crashTimer = null;
-let crashGameState = 'idle'; // 'idle', 'running', 'crashed', 'cashed-out'
+let crashGameState = 'idle';
 let crashCanvas, crashCtx;
-let crashX = 0;
-let crashY = 180;
+let crashX = 0, crashY = 180;
 
 function initCrashGame() {
     crashGameState = 'idle';
     crashMultiplier = 1.00;
-    
     document.getElementById('crash-multiplier-text').textContent = '1.00x';
     document.getElementById('crash-multiplier-text').className = 'crash-multiplier';
     
@@ -1182,30 +1138,9 @@ function initCrashGame() {
     banner.className = 'game-status-banner';
     document.getElementById('crash-status-text').textContent = 'Inicia el despegue. ¡Retírate a tiempo!';
     
-    // Draw initial clean canvas
     crashCanvas = document.getElementById('crash-canvas');
     crashCtx = crashCanvas.getContext('2d');
     drawCrashBackground();
-}
-
-function drawCrashBackground() {
-    crashCtx.clearRect(0, 0, crashCanvas.width, crashCanvas.height);
-    crashCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-    crashCtx.lineWidth = 1;
-    
-    // Draw grid lines
-    for (let i = 40; i < crashCanvas.width; i += 40) {
-        crashCtx.beginPath();
-        crashCtx.moveTo(i, 0);
-        crashCtx.lineTo(i, crashCanvas.height);
-        crashCtx.stroke();
-    }
-    for (let j = 30; j < crashCanvas.height; j += 30) {
-        crashCtx.beginPath();
-        crashCtx.moveTo(0, j);
-        crashCtx.lineTo(crashCanvas.width, j);
-        crashCtx.stroke();
-    }
 }
 
 function launchCrashRocket() {
@@ -1222,65 +1157,38 @@ function launchCrashRocket() {
     banner.className = 'game-status-banner';
     document.getElementById('crash-status-text').textContent = 'El cohete está ascendiendo...';
     
-    // Generate weighted crash point
-    // 10% chance crash instantly (1.00 - 1.10)
-    // 50% chance crash (1.10 - 2.00)
-    // 30% chance crash (2.00 - 4.00)
-    // 10% chance crash (4.00 - 8.00)
     const rand = Math.random();
-    if (rand < 0.1) {
-        crashPoint = 1.01 + Math.random() * 0.1;
-    } else if (rand < 0.6) {
-        crashPoint = 1.11 + Math.random() * 0.9;
-    } else if (rand < 0.9) {
-        crashPoint = 2.01 + Math.random() * 2.0;
-    } else {
-        crashPoint = 4.01 + Math.random() * 4.0;
-    }
+    if (rand < 0.1) crashPoint = 1.01 + Math.random() * 0.1;
+    else if (rand < 0.6) crashPoint = 1.11 + Math.random() * 0.9;
+    else if (rand < 0.9) crashPoint = 2.01 + Math.random() * 2.0;
+    else crashPoint = 4.01 + Math.random() * 4.0;
     
-    // Game loop
     crashTimer = setInterval(() => {
-        crashMultiplier += 0.03 + (crashMultiplier * 0.015); // Accelerates slightly
+        crashMultiplier += 0.03 + (crashMultiplier * 0.015);
         document.getElementById('crash-multiplier-text').textContent = `${crashMultiplier.toFixed(2)}x`;
         
-        // Physics path
         crashX += 1.8;
         crashY -= (crashCanvas.height - crashY) * 0.03 + 0.5;
         if (crashX > crashCanvas.width - 20) crashX = crashCanvas.width - 20;
         if (crashY < 20) crashY = 20;
         
-        // Re-draw Canvas rocket path
         drawCrashBackground();
-        
-        // Draw path line
         crashCtx.strokeStyle = 'var(--accent-purple)';
         crashCtx.lineWidth = 4;
-        crashCtx.shadowBlur = 8;
-        crashCtx.shadowColor = 'var(--accent-purple-glow)';
         crashCtx.beginPath();
         crashCtx.moveTo(10, 170);
-        
-        // Exponential curve
         crashCtx.quadraticCurveTo(crashX / 2, 170, crashX, crashY);
         crashCtx.stroke();
         
-        // Draw rocket dot
-        crashCtx.shadowBlur = 12;
-        crashCtx.shadowColor = 'var(--accent-cyan)';
         crashCtx.fillStyle = 'var(--accent-cyan)';
         crashCtx.beginPath();
         crashCtx.arc(crashX, crashY, 6, 0, 2 * Math.PI);
         crashCtx.fill();
         
-        // Reset shadow
-        crashCtx.shadowBlur = 0;
-        
-        // Check for Crash
         if (crashMultiplier >= crashPoint) {
             clearInterval(crashTimer);
             crashGameState = 'crashed';
             
-            // Draw explosion
             crashCtx.fillStyle = 'var(--danger-red)';
             crashCtx.beginPath();
             crashCtx.arc(crashX, crashY, 15, 0, 2 * Math.PI);
@@ -1310,10 +1218,8 @@ function launchCrashRocket() {
 
 function cashoutCrashRocket() {
     if (crashGameState !== 'running') return;
-    
     clearInterval(crashTimer);
     crashGameState = 'cashed-out';
-    
     document.getElementById('btn-crash-cashout').classList.add('hide');
     
     const multText = document.getElementById('crash-multiplier-text');
@@ -1343,7 +1249,7 @@ let tradingTimeLeft = 30;
 let tradingTimerInterval = null;
 let tradingChartHistory = [100];
 let tradingCanvas, tradingCtx;
-let tradingGameState = 'idle'; // 'idle', 'trading', 'finished'
+let tradingGameState = 'idle';
 
 function initTradingGame() {
     tradingGameState = 'idle';
@@ -1374,61 +1280,6 @@ function initTradingGame() {
     drawTradingChart();
 }
 
-function drawTradingChart() {
-    tradingCtx.clearRect(0, 0, tradingCanvas.width, tradingCanvas.height);
-    
-    // Draw background guide lines
-    tradingCtx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-    tradingCtx.lineWidth = 1;
-    for (let i = 30; i < tradingCanvas.height; i += 30) {
-        tradingCtx.beginPath();
-        tradingCtx.moveTo(0, i);
-        tradingCtx.lineTo(tradingCanvas.width, i);
-        tradingCtx.stroke();
-    }
-    
-    if (tradingChartHistory.length < 2) return;
-    
-    // Map values to chart height
-    const maxVal = Math.max(...tradingChartHistory) * 1.15;
-    const minVal = Math.min(...tradingChartHistory) * 0.85;
-    const valRange = maxVal - minVal;
-    
-    const pointsCount = tradingChartHistory.length;
-    const xStep = tradingCanvas.width / (pointsCount - 1);
-    
-    tradingCtx.beginPath();
-    tradingCtx.lineWidth = 3;
-    
-    // Decide chart color based on last tick trend
-    const lastPrice = tradingChartHistory[pointsCount - 1];
-    const prevPrice = tradingChartHistory[pointsCount - 2];
-    
-    if (lastPrice >= prevPrice) {
-        tradingCtx.strokeStyle = '#10b981'; // Green
-        tradingCtx.shadowColor = 'rgba(16,185,129,0.3)';
-    } else {
-        tradingCtx.strokeStyle = '#ef4444'; // Red
-        tradingCtx.shadowColor = 'rgba(239,68,68,0.3)';
-    }
-    tradingCtx.shadowBlur = 6;
-    
-    tradingChartHistory.forEach((price, idx) => {
-        const x = idx * xStep;
-        // Y coordinate mapping (higher price = lower Y)
-        const y = tradingCanvas.height - ((price - minVal) / valRange) * tradingCanvas.height;
-        if (idx === 0) {
-            tradingCtx.moveTo(x, y);
-        } else {
-            tradingCtx.lineTo(x, y);
-        }
-    });
-    tradingCtx.stroke();
-    
-    // Reset shadow
-    tradingCtx.shadowBlur = 0;
-}
-
 function startTradingGame() {
     tradingGameState = 'trading';
     tradingBalance = 1000.00;
@@ -1453,46 +1304,33 @@ function startTradingGame() {
     drawTradingChart();
     
     tradingTimerInterval = setInterval(() => {
-        // Decrement timer
         tradingTimeLeft--;
         document.getElementById('trading-timer').textContent = `${tradingTimeLeft}s`;
         
-        // Random price fluctuation: -8% to +10.5% (slight positive trend)
         const changePercent = (Math.random() * 18.5 - 8.0) / 100;
         const prevPrice = tradingStockPrice;
         tradingStockPrice = tradingStockPrice * (1 + changePercent);
-        if (tradingStockPrice < 5) tradingStockPrice = 5; // Floor price
+        if (tradingStockPrice < 5) tradingStockPrice = 5;
         
         tradingChartHistory.push(tradingStockPrice);
-        if (tradingChartHistory.length > 25) {
-            tradingChartHistory.shift(); // Keep chart scrolling
-        }
+        if (tradingChartHistory.length > 25) tradingChartHistory.shift();
         
-        // Update visual prices
         const priceEl = document.getElementById('trading-stock-price');
         priceEl.textContent = `$${tradingStockPrice.toFixed(2)}`;
-        if (tradingStockPrice >= prevPrice) {
-            priceEl.className = 'stock-price up';
-        } else {
-            priceEl.className = 'stock-price down';
-        }
+        priceEl.className = 'stock-price' + (tradingStockPrice >= prevPrice ? ' up' : ' down');
         
         drawTradingChart();
         
-        // Game Over conditions
         if (tradingTimeLeft <= 0) {
             clearInterval(tradingTimerInterval);
             tradingGameState = 'finished';
             
-            // Auto sell outstanding shares
             if (tradingShares > 0) {
                 tradingBalance += tradingShares * tradingStockPrice;
                 tradingShares = 0;
                 document.getElementById('trading-balance').textContent = `$${tradingBalance.toFixed(2)}`;
                 document.getElementById('trading-shares-owned').textContent = '0';
-                showToast('Acciones liquidadas al cierre', 'info');
             }
-            
             checkTradingResult();
         }
     }, 1000);
@@ -1500,39 +1338,28 @@ function startTradingGame() {
 
 function buyStock() {
     if (tradingGameState !== 'trading') return;
-    
     const maxShares = Math.floor(tradingBalance / tradingStockPrice);
     if (maxShares <= 0) {
-        showToast('Saldo insuficiente para comprar 1 acción', 'danger');
+        showToast('Saldo insuficiente', 'danger');
         return;
     }
-    
     tradingBalance -= maxShares * tradingStockPrice;
     tradingShares += maxShares;
-    
     document.getElementById('trading-balance').textContent = `$${tradingBalance.toFixed(2)}`;
     document.getElementById('trading-shares-owned').textContent = tradingShares;
-    
-    showToast(`Compradas ${maxShares} acciones`, 'success');
 }
 
 function sellStock() {
     if (tradingGameState !== 'trading') return;
-    if (tradingShares <= 0) {
-        showToast('No tienes acciones para vender', 'danger');
-        return;
-    }
+    if (tradingShares <= 0) return;
     
     const revenue = tradingShares * tradingStockPrice;
     tradingBalance += revenue;
-    
-    showToast(`Vendidas ${tradingShares} acciones por $${revenue.toFixed(2)}`, 'success');
-    
     tradingShares = 0;
+    
     document.getElementById('trading-balance').textContent = `$${tradingBalance.toFixed(2)}`;
     document.getElementById('trading-shares-owned').textContent = '0';
     
-    // Check instant win
     if (tradingBalance >= tradingTarget) {
         clearInterval(tradingTimerInterval);
         tradingGameState = 'finished';
@@ -1543,17 +1370,16 @@ function sellStock() {
 function checkTradingResult() {
     document.getElementById('btn-trading-buy').classList.add('hide');
     document.getElementById('btn-trading-sell').classList.add('hide');
-    
     const banner = document.getElementById('trading-status-banner');
     const statusText = document.getElementById('trading-status-text');
     const startBtn = document.getElementById('btn-trading-start');
     const exitBtn = document.getElementById('btn-trading-exit');
     
     if (tradingBalance >= tradingTarget) {
-        statusText.innerHTML = `¡Meta lograda! Lograste un capital de <strong>$${tradingBalance.toFixed(2)}</strong>.`;
+        statusText.innerHTML = `¡Meta lograda! Capital: <strong>$${tradingBalance.toFixed(2)}</strong>.`;
         resolveGameSession('win', 'trading', statusText, banner, exitBtn, null);
     } else {
-        statusText.innerHTML = `Fracaso. Tu saldo final es <strong>$${tradingBalance.toFixed(2)}</strong> (Meta: $1,500).`;
+        statusText.innerHTML = `Fracaso. Saldo: <strong>$${tradingBalance.toFixed(2)}</strong> (Meta: $1,500).`;
         resolveGameSession('lose', 'trading', statusText, banner, exitBtn, null);
         
         setTimeout(() => {
@@ -1566,4 +1392,36 @@ function checkTradingResult() {
 
 function stopTradingLoop() {
     if (tradingTimerInterval) clearInterval(tradingTimerInterval);
+}
+
+// ==========================================================================
+// GAME HELPERS & GRAPHICS
+// ==========================================================================
+function drawCrashBackground() {
+    crashCtx.clearRect(0, 0, crashCanvas.width, crashCanvas.height);
+    crashCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    crashCtx.lineWidth = 1;
+    for (let i = 40; i < crashCanvas.width; i += 40) {
+        crashCtx.beginPath(); crashCtx.moveTo(i, 0); crashCtx.lineTo(i, crashCanvas.height); crashCtx.stroke();
+    }
+    for (let j = 30; j < crashCanvas.height; j += 30) {
+        crashCtx.beginPath(); crashCtx.moveTo(0, j); crashCtx.lineTo(crashCanvas.width, j); crashCtx.stroke();
+    }
+}
+
+function setDiePips(dieEl, val) {
+    dieEl.innerHTML = '';
+    const pipPositions = {
+        1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8]
+    };
+    const pips = pipPositions[val] || [];
+    for (let i = 0; i < 9; i++) {
+        const gridCell = document.createElement('div');
+        if (pips.includes(i)) {
+            const pip = document.createElement('span');
+            pip.className = 'die-dot';
+            gridCell.appendChild(pip);
+        }
+        dieEl.appendChild(gridCell);
+    }
 }
